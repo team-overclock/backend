@@ -1,0 +1,13 @@
+.env
+
+# virtual environments
+venv
+.venv
+.python-version
+
+# cache
+__pycache__
+
+# code
+.vscode
+!.vscode/extensions.json
