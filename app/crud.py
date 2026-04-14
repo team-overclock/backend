@@ -36,3 +36,7 @@ def create_user(db: Session, user: UserCreate):
     db.commit()
     db.refresh(db_user)
     return db_user
+
+# src/app/crud.py 에 추가
+def get_user_by_email(db: Session, email: str):
+    return db.query(User).filter(User.e_mail == email).first()
