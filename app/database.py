@@ -1,5 +1,4 @@
 from sqlalchemy import create_engine
-from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 import os
 from dotenv import load_dotenv
@@ -16,9 +15,6 @@ engine = create_engine(DB_URL)
 
 # 2. 세션 생성 도구 (실제 DB 작업을 할 때 사용)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
-# 3. 모델들이 상속받을 기본 클래스 (models/user.py에서 가져다 쓰는 그 Base입니다!)
-Base = declarative_base()
 
 # DB 세션을 가져오는 함수 (회원가입/로그인 로직에서 사용)
 def get_db():
