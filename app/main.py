@@ -2,8 +2,11 @@
 
 from fastapi import FastAPI
 
-from .api.router import api_router
-from .docs.scalar import router as scalar_router
+from .routers import (
+    scalar,
+    sample,
+    health,
+)
 
 
 def create_app() -> FastAPI:
@@ -15,8 +18,9 @@ def create_app() -> FastAPI:
     )
 
     # Scalar 문서는 OpenAPI 목록에서 숨김
-    app.include_router(scalar_router, prefix="/scalar", include_in_schema=False)
-    app.include_router(api_router)
+    app.include_router(scalar.router, prefix="/scalar", include_in_schema=False)
+    app.include_router(sample.router)
+    app.include_router(health.router)
 
     return app
 

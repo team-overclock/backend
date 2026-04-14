@@ -2,12 +2,13 @@
 
 ## 구조
 
-- `src/main.py`: 실행 진입점
-- `src/app/main.py`: FastAPI 앱 생성/설정
-- `src/app/api/router.py`: 라우터 묶음
-- `src/app/api/routes/`: 기능별 엔드포인트
-- `src/app/schemas/`: 요청/응답 스키마
-- `src/app/docs/scalar.py`: Scalar 문서 라우트
+- `app/main.py`: FastAPI 앱 생성/설정, 실행 진입점
+- `app/crud.py`: DB crud(create, read, update, delete)
+- `app/database.py`: DB 세션 연결 함수
+- `app/core/`: 코어?
+- `app/models/`: DB 모델
+- `app/routers/`: 기능별 라우터
+- `app/schemas/`: 요청/응답 스키마
 
 ## requirements.txt
 
@@ -24,8 +25,8 @@ pip install -r requirements.txt
 ## 실행
 
 ```shell
-fastapi dev src/main.py
-# 또는 python3 -m fastapi dev src/main.py
+fastapi dev app
+# 또는 python3 -m fastapi dev app
 ```
 
 ## 테스트
