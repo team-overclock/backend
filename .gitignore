@@ -11,3 +11,6 @@ __pycache__
 # code
 .vscode
 !.vscode/extensions.json
+
+# backup
+*.bak
