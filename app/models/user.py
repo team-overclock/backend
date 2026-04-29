@@ -1,10 +1,14 @@
+from typing import TYPE_CHECKING
 from sqlalchemy import Column, ForeignKey, DateTime, String
 from sqlalchemy.dialects.mysql import INTEGER
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import Mapped, relationship
 from sqlalchemy.sql import func
 
 from .base import Base
 
+
+if TYPE_CHECKING:
+    from . import Region, UserRecommendation
 
 class User(Base):
     """
@@ -13,11 +17,11 @@ class User(Base):
     - name: 사용자 이름
     - email: 사용자 이메일 (unique)
     - password: 사용자 비밀번호
-    - region_id: 사용자가 선택한 기본 지역 ID (foreign key)
+    - region_id: 사용자가 선택한 기본 동네 ID (foreign key)
     - created_at: 계정 생성 시간
     - updated_at: 계정 정보 마지막 업데이트 시간
 
-    - region: 사용자가 선택한 기본 지역 정보
+    - region: 사용자가 선택한 기본 동네 정보
     - recommendations: 사용자가 요청한 추천 목록
     """
 
@@ -31,5 +35,5 @@ class User(Base):
     created_at = Column(DateTime, nullable=False, default=func.now())
     updated_at = Column(DateTime, nullable=False, default=func.now(), onupdate=func.now())
 
-    region = relationship("Region", back_populates="users")
-    recommendations = relationship("UserHasRecommendation", back_populates="user")
+    region: Mapped["Region"] = relationship("Region", back_populates="users")
+    recommendations: Mapped[list["UserRecommendation"]] = relationship("UserRecommendation", back_populates="user")

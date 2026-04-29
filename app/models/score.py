@@ -1,9 +1,13 @@
+from typing import TYPE_CHECKING
 from sqlalchemy import Column, ForeignKey
 from sqlalchemy.dialects.mysql import INTEGER, DECIMAL
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import Mapped, relationship
 
 from .base import Base
 
+
+if TYPE_CHECKING:
+    from . import Recommendation, Property
 
 class Score(Base):
     """
@@ -22,5 +26,5 @@ class Score(Base):
     property_id = Column(INTEGER(unsigned=True), ForeignKey("property.id"), primary_key=True)
     score = Column(DECIMAL(5, 2, unsigned=True), nullable=False)
 
-    recommendation = relationship("Recommendation", back_populates="scores")
-    property = relationship("Property", back_populates="scores")
+    recommendation: Mapped["Recommendation"] = relationship("Recommendation", back_populates="scores")
+    property: Mapped["Property"] = relationship("Property", back_populates="recommendation_entries")
