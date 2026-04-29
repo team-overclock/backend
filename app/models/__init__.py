@@ -8,4 +8,4 @@ from .recommendation import Recommendation
 from .recommendation_infra_priority import RecommendationInfraPriority
 from .score import Score
 from .user import User
-from .user_has_recommendation import UserHasRecommendation
+from .user_recommendation import UserRecommendation

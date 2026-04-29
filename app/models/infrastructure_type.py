@@ -1,9 +1,13 @@
+from typing import TYPE_CHECKING
 from sqlalchemy import Column, String
 from sqlalchemy.dialects.mysql import TINYINT
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import Mapped, relationship
 
 from .base import Base
 
+
+if TYPE_CHECKING:
+    from . import Infrastructure, RecommendationInfraPriority
 
 class InfrastructureType(Base):
     """
@@ -12,13 +16,13 @@ class InfrastructureType(Base):
     - name: 인프라 유형 이름 (예: `"지하철역"`, `"대형병원"` 등)
 
     - infrastructures: 해당 인프라 유형에 속하는 인프라 목록
-    - priorities: 해당 인프라 유형이 추천에 사용된 우선순위 목록, 추천 데이터로 연결됨
+    - usage_in_recommendations: 해당 인프라 유형이 우선순위로 선택된 추천 목록
     """
 
     __tablename__ = "infrastructure_type"
 
     id = Column(TINYINT(unsigned=True), primary_key=True, index=True)
-    name = Column(String(100), nullable=False)
+    name = Column(String(100), nullable=False, unique=True)
 
-    infrastructures = relationship("Infrastructure", back_populates="type")
-    priorities = relationship("RecommendationInfraPriority", back_populates="infrastructure_type")
+    infrastructures: Mapped[list["Infrastructure"]] = relationship("Infrastructure", back_populates="type")
+    usage_in_recommendations: Mapped[list["RecommendationInfraPriority"]] = relationship("RecommendationInfraPriority", back_populates="infrastructure_type")

@@ -1,9 +1,13 @@
+from typing import TYPE_CHECKING
 from sqlalchemy import Column, ForeignKey
 from sqlalchemy.dialects.mysql import INTEGER, TINYINT
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import Mapped, relationship
 
 from .base import Base
 
+
+if TYPE_CHECKING:
+    from . import Recommendation, InfrastructureType
 
 class RecommendationInfraPriority(Base):
     """
@@ -22,5 +26,5 @@ class RecommendationInfraPriority(Base):
     infrastructure_type_id = Column(TINYINT(unsigned=True), ForeignKey("infrastructure_type.id"), primary_key=True)
     priority = Column(TINYINT(unsigned=True), nullable=False)
 
-    recommendation = relationship("Recommendation", back_populates="infrastructure_type_priorities")
-    infrastructure_type = relationship("InfrastructureType", back_populates="priorities")
+    recommendation: Mapped["Recommendation"] = relationship("Recommendation", back_populates="infra_priorities")
+    infrastructure_type: Mapped["InfrastructureType"] = relationship("InfrastructureType", back_populates="usage_in_recommendations")
