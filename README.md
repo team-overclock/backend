@@ -29,6 +29,12 @@ fastapi dev app
 # 또는 python3 -m fastapi dev app
 ```
 
+### Docker
+
+도커 관련 사용법은
+[team-overclock/monorepo#docker](https://github.com/team-overclock/monorepo#docker)
+참고
+
 ## 테스트
 
 API 서버가 정상 작동하는지 테스트 자동화
