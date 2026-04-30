@@ -1,0 +1,17 @@
+#!/usr/bin/with-contenv bash
+
+cd /app
+
+if [ "$APP_ENV" != "production" ]; then
+	echo "**** Installing dependencies... ****"
+
+	if [ ! -f "requirements.txt" ]; then
+		echo "Error: requirements.txt not found" >&2
+		exit 1
+	fi
+
+	if [ ! -f "$VIRTUAL_ENV/bin/activate" ]; then
+		uv venv "$VIRTUAL_ENV"
+	fi
+	uv pip install --no-cache -r requirements.txt
+fi
