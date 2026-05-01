@@ -29,11 +29,27 @@ fastapi dev app
 # 또는 python3 -m fastapi dev app
 ```
 
-### Docker
+## Docker
 
-도커 관련 사용법은
-[team-overclock/monorepo#docker](https://github.com/team-overclock/monorepo#docker)
-참고
+> [!NOTE]
+> 도커 컨테이너 실행 방법은
+> [team-overclock/monorepo#docker](https://github.com/team-overclock/monorepo#docker)
+> 참고
+
+내장 명령어 목록 및 설명
+
+### drop-tables
+
+usage: `docker exec -it <container_name> drop-tables [-y|--yes]`
+
+연결된 데이터베이스의 모든 테이블 삭제.
+`-y` 또는 `--yes` 입력 시 삭제 여부를 묻지 않고 즉시 삭제함.
+
+### insert-data
+
+usage: `docker exec -it <container_name> insert-data`
+
+`data` 폴더 내 csv 파일 내 데이터를 데이터베이스에 삽입 (테이블 자동 생성)
 
 ## 테스트
 
