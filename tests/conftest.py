@@ -1,6 +1,6 @@
 """테스트 공통 설정 모듈.
 
-프로젝트 루트를 `sys.path`에 추가해 `src` 패키지 import를 안정적으로 보장.
+프로젝트 루트를 `sys.path`에 추가해 `app` 패키지 import를 안정적으로 보장.
 """
 
 from pathlib import Path

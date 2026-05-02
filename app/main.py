@@ -2,12 +2,12 @@
 
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from .models import Base
 from .database import engine
 from .routers import (
     scalar,
-    sample,
     health,
 )
 
@@ -30,12 +30,20 @@ def create_app() -> FastAPI:
         title="fastapi",
         docs_url="/docs",
         redoc_url="/redoc",
+        redirect_slashes=False,
         lifespan=lifespan,
+    )
+
+    app.add_middleware(
+        CORSMiddleware,
+        allow_credentials=True,
+        allow_origins=["*"],
+        allow_methods=["*"],
+        allow_headers=["*"],
     )
 
     # Scalar 문서는 OpenAPI 목록에서 숨김
     app.include_router(scalar.router, prefix="/scalar", include_in_schema=False)
-    app.include_router(sample.router)
     app.include_router(health.router)
 
     return app

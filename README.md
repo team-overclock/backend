@@ -2,13 +2,19 @@
 
 ## 구조
 
+- `data/`: 데이터베이스에 삽입할 csv 파일 저장 폴더
+- `diagram/`: 데이터베이스 다이어그램 파일 및 이미지 (참고용)
 - `app/main.py`: FastAPI 앱 생성/설정, 실행 진입점
-- `app/crud.py`: DB crud(create, read, update, delete)
+- `app/crud.py`: CRUD(create, read, update, delete)
 - `app/database.py`: DB 세션 연결 함수
 - `app/core/`: 코어?
 - `app/models/`: DB 모델
 - `app/routers/`: 기능별 라우터
 - `app/schemas/`: 요청/응답 스키마
+- `tests/`: 앱 테스트 케이스 코드
+- `root/`: 도커 이미지 빌드 시 루트 경로에 복사할 대상 폴더
+- `scripts/*.py`: 호스트에서 사용 가능한 파이썬 스크립트 파일
+- `scripts/bin/`: 이미지 내장 명령어용 스크립트 파일
 
 ## requirements.txt
 
@@ -23,6 +29,15 @@ pip install -r requirements.txt
 ```
 
 ## 실행
+
+```shell
+fastapi run app
+# 또는 python3 -m fastapi run app
+```
+
+### 개발모드로 실행
+
+실행 중 코드 변경 시 즉시 반영됨
 
 ```shell
 fastapi dev app
@@ -67,8 +82,6 @@ pytest -q tests/test_health.py
 
 ## API 문서
 
-### FastAPI 내장
-
 - <http://127.0.0.1:8000/docs>:
   fastapi 기본 제공,
   swagger-ui, 엔드포인트 목록 및 테스트 가능
@@ -77,5 +90,5 @@ pytest -q tests/test_health.py
   swagger-ui보다 가독성은 좋으나 요청 테스트 등 기능 없음
 - <http://127.0.0.1:8000/scalar>:
   swagger-ui대안,
-  가독성은 좋은 요청 테스트도 가능한 문서,
-  언어별 요청 예시 코드 제공
+  가독성 좋으면서 요청 테스트도 가능한 문서,
+  언어/명령어별 요청 예시 코드 제공
