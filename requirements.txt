@@ -5,3 +5,4 @@ sqlalchemy
 pymysql             
 passlib[bcrypt]     
 python-dotenv  
+cuid2
