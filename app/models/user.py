@@ -3,12 +3,15 @@ from sqlalchemy import Column, ForeignKey, DateTime, String
 from sqlalchemy.dialects.mysql import INTEGER
 from sqlalchemy.orm import Mapped, relationship
 from sqlalchemy.sql import func
+from cuid2 import cuid_wrapper
 
 from .base import Base
 
 
 if TYPE_CHECKING:
     from . import Region, UserRecommendation
+
+create_cuid = cuid_wrapper()
 
 class User(Base):
     """
@@ -27,7 +30,7 @@ class User(Base):
 
     __tablename__ = "user"
 
-    id = Column(String(36), primary_key=True)
+    id = Column(String(36), primary_key=True, default=create_cuid)
     name = Column(String(50), nullable=False)
     email = Column(String(255), nullable=False, unique=True)
     password = Column(String(100), nullable=False)
