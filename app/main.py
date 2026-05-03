@@ -12,6 +12,7 @@ from .core.exception import AppException
 from .routers import (
     scalar,
     health,
+    public,
 )
 
 
@@ -78,7 +79,7 @@ def create_app() -> FastAPI:
     # Scalar 문서는 OpenAPI 목록에서 숨김
     app.include_router(scalar.router, prefix="/scalar", include_in_schema=False)
     app.include_router(health.router)
-
+    app.include_router(public.router)
     return app
 
 
