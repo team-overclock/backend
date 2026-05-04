@@ -8,16 +8,34 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.sessions import SessionMiddleware
 
-from .models import Base
-from .database import engine
+from .models import Base, User
+from .database import engine, SessionLocal
+from .crud.user import create_user
 from .core.exception import AppException
 from .schemas.error import AppError
+from .schemas.auth import UserCreateRequest
 from .dependencies import get_current_user
 from .routers import (
     scalar,
     health,
     public,
+    auth,
+    users,
 )
+
+
+def create_guest_user():
+    """게스트 사용자 생성 (초기 데이터)"""
+    db = SessionLocal()
+    try:
+        if db.query(User).count() == 0:
+            create_user(db, UserCreateRequest(
+                name="guest",
+                email="guest@example.com",
+                password="guest",
+            ))
+    finally:
+        db.close()
 
 
 @asynccontextmanager
@@ -29,6 +47,10 @@ async def lifespan(app: FastAPI):
 
     # 데이터베이스 내 테이블 자동 생성
     Base.metadata.create_all(bind=engine)
+
+    # 게스트 유저 생성
+    create_guest_user()
+
     yield
 
 
@@ -104,6 +126,8 @@ def create_app() -> FastAPI:
     app.include_router(scalar.router, prefix="/scalar", include_in_schema=False)
     app.include_router(health.router)
     app.include_router(public.router)
+    app.include_router(auth.router)
+    require_auth(users.router)
     return app
 
 
