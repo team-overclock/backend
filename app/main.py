@@ -1,11 +1,14 @@
 """애플리케이션 팩토리 및 FastAPI 인스턴스 정의 모듈."""
 
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from .models import Base
 from .database import engine
+from .core.exception import AppException
 from .routers import (
     scalar,
     health,
@@ -41,6 +44,36 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    # 기본 에러 구조 변경
+    @app.exception_handler(StarletteHTTPException)
+    async def http_exception_handler(_: Request, exc: StarletteHTTPException):
+        detail = exc.detail
+        if isinstance(detail, str):
+            return JSONResponse(
+                status_code=exc.status_code,
+                content={
+                    "message": detail,
+                    "detail": None,
+                },
+            )
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={
+                "detail": detail,
+            },
+        )
+
+    # 커스텀 에러 등록
+    @app.exception_handler(AppException)
+    async def app_exception_handler(_: Request, exc: AppException):
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={
+                "message": exc.message,
+                "detail": exc.detail,
+            },
+        )
 
     # Scalar 문서는 OpenAPI 목록에서 숨김
     app.include_router(scalar.router, prefix="/scalar", include_in_schema=False)
