@@ -28,7 +28,7 @@ def login(login_data: UserLogin, response: Response, db: Session = Depends(get_d
         raise AppException(status_code=400, message="이메일 또는 비밀번호가 잘못되었습니다.")
 
     # 2. 비밀번호 검증 (security.py의 함수 사용)
-    if not verify_password(login_data.password, user.password):
+    if not verify_password(user.password, login_data.password):
         raise AppException(status_code=400, message="이메일 또는 비밀번호가 잘못되었습니다.")
 
     # 3. 세션 쿠키 설정 (보안 전공자의 디테일)

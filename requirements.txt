@@ -4,7 +4,7 @@ scalar-fastapi
 pytest
 sqlalchemy          
 pymysql             
-passlib[bcrypt]     
+argon2-cffi
 python-dotenv  
 cuid2
 admdongkor
