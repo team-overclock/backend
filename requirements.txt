@@ -1,4 +1,5 @@
 fastapi[standard]
+itsdangerous
 scalar-fastapi
 pytest
 sqlalchemy          

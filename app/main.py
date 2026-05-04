@@ -1,14 +1,18 @@
 """애플리케이션 팩토리 및 FastAPI 인스턴스 정의 모듈."""
 
+import os
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, APIRouter, Request, Depends
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.exceptions import HTTPException as StarletteHTTPException
+from starlette.middleware.sessions import SessionMiddleware
 
 from .models import Base
 from .database import engine
 from .core.exception import AppException
+from .schemas.error import AppError
+from .dependencies import get_current_user
 from .routers import (
     scalar,
     health,
@@ -46,6 +50,16 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
+    # http_only는 항상 설정됨: https://starlette.dev/middleware/#sessionmiddleware
+    app.add_middleware(
+        SessionMiddleware,
+        secret_key=os.getenv("SECRET_KEY", "x"),
+        session_cookie="session",
+        same_site="lax",                                  # CSRF 방어
+        https_only=os.getenv("APP_ENV") == "production",  # 운영 모드에서만 True
+        max_age=60 * 60 * 24,                             # 1일 동안 세션 유지
+    )
+
     # 기본 에러 구조 변경
     @app.exception_handler(StarletteHTTPException)
     async def http_exception_handler(_: Request, exc: StarletteHTTPException):
@@ -73,6 +87,16 @@ def create_app() -> FastAPI:
             content={
                 "message": exc.message,
                 "detail": exc.detail,
+            },
+        )
+
+    def require_auth(router: APIRouter):
+        """로그인 전용 라우터 자동 구성"""
+        app.include_router(
+            router,
+            dependencies=[Depends(get_current_user)],
+            responses={
+                401: {"model": AppError, "description": "로그인이 되어있지 않은 경우"},
             },
         )
 

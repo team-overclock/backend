@@ -9,3 +9,7 @@ class UserCreate(BaseModel):
     email: EmailStr
     password: str
     region: str
+
+
+class UserSession(BaseModel):
+    id: str
