@@ -1,8 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException, Response, Request
+from fastapi import APIRouter, Depends, Response
 from sqlalchemy.orm import Session
 from ..database import get_db
 from ..schemas.auth import UserCreate, UserLogin # UserLogin 스키마 필요
 from ..core.security import verify_password     # 보안 로직 불러오기
+from ..core.exception import AppException
 from .. import crud
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -13,7 +14,7 @@ def signup(user: UserCreate, db: Session = Depends(get_db)):
     # 이미 가입된 이메일인지 체크하는 로직을 crud에 추가하는 것이 좋습니다.
     db_user = crud.get_user_by_email(db, email=user.email)
     if db_user:
-        raise HTTPException(status_code=400, detail="이미 등록된 이메일입니다.")
+        raise AppException(status_code=400, message="이미 등록된 이메일입니다.")
     
     new_user = crud.create_user(db=db, user=user)
     return {"message": "회원가입 성공", "user": new_user.name}
@@ -24,11 +25,11 @@ def login(login_data: UserLogin, response: Response, db: Session = Depends(get_d
     # 1. DB에서 해당 이메일 유저 찾기
     user = crud.get_user_by_email(db, email=login_data.email)
     if not user:
-        raise HTTPException(status_code=400, detail="이메일 또는 비밀번호가 잘못되었습니다.")
+        raise AppException(status_code=400, message="이메일 또는 비밀번호가 잘못되었습니다.")
 
     # 2. 비밀번호 검증 (security.py의 함수 사용)
     if not verify_password(login_data.password, user.password):
-        raise HTTPException(status_code=400, detail="이메일 또는 비밀번호가 잘못되었습니다.")
+        raise AppException(status_code=400, message="이메일 또는 비밀번호가 잘못되었습니다.")
 
     # 3. 세션 쿠키 설정 (보안 전공자의 디테일)
     # 실제 운영 시에는 유저 ID 대신 암호화된 토큰이나 UUID를 사용합니다.
