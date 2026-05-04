@@ -1,6 +1,6 @@
 from pydantic import BaseModel, EmailStr
 
-class LoginRequest(BaseModel):
+class UserLogin(BaseModel):
     email: EmailStr  # DB 필드명과 일치시킴
     password: str
 
