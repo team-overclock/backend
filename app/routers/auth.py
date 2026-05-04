@@ -4,7 +4,7 @@ from ..database import get_db
 from ..schemas.auth import UserCreate, UserLogin # UserLogin 스키마 필요
 from ..core.security import verify_password     # 보안 로직 불러오기
 from ..core.exception import AppException
-from .. import crud
+from ..crud.user import create_user, get_user_by_email
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -12,18 +12,18 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 @router.post("/signup")
 def signup(user: UserCreate, db: Session = Depends(get_db)):
     # 이미 가입된 이메일인지 체크하는 로직을 crud에 추가하는 것이 좋습니다.
-    db_user = crud.get_user_by_email(db, email=user.email)
+    db_user = get_user_by_email(db, email=user.email)
     if db_user:
         raise AppException(status_code=400, message="이미 등록된 이메일입니다.")
     
-    new_user = crud.create_user(db=db, user=user)
+    new_user = create_user(db=db, user=user)
     return {"message": "회원가입 성공", "user": new_user.name}
 
 # --- 로그인 (세션 발급) ---
 @router.post("/login")
 def login(login_data: UserLogin, response: Response, db: Session = Depends(get_db)):
     # 1. DB에서 해당 이메일 유저 찾기
-    user = crud.get_user_by_email(db, email=login_data.email)
+    user = get_user_by_email(db, email=login_data.email)
     if not user:
         raise AppException(status_code=400, message="이메일 또는 비밀번호가 잘못되었습니다.")
 

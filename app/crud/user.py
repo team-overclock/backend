@@ -1,8 +1,8 @@
 from sqlalchemy.orm import Session
 
-from .models import User, Region, InfrastructureType
-from .schemas.auth import UserCreate
-from .core.security import hash_password
+from ..models import User, Region, InfrastructureType
+from ..schemas.auth import UserCreate
+from ..core.security import hash_password
 
 
 def get_regions_by_depth(db: Session, depth: int = 2):

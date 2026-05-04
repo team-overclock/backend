@@ -5,8 +5,8 @@
 - `data/`: 데이터베이스에 삽입할 csv 파일 저장 폴더
 - `diagram/`: 데이터베이스 다이어그램 파일 및 이미지 (참고용)
 - `app/main.py`: FastAPI 앱 생성/설정, 실행 진입점
-- `app/crud.py`: CRUD(create, read, update, delete)
 - `app/database.py`: DB 세션 연결 함수
+- `app/crud/`: CRUD(create, read, update, delete)
 - `app/core/`: 코어?
 - `app/models/`: DB 모델
 - `app/routers/`: 기능별 라우터
