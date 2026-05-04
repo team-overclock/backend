@@ -28,8 +28,8 @@ def create_user(db: Session, user: UserCreate):
     
     db_user = User(
         name=user.name,
-        e_mail=user.e_mail,
-        passwd=hashed_pwd, # 암호화된 비밀번호 저장
+        email=user.email,
+        password=hashed_pwd, # 암호화된 비밀번호 저장
         region=user.region
     )
     db.add(db_user)
@@ -39,4 +39,4 @@ def create_user(db: Session, user: UserCreate):
 
 # src/app/crud.py 에 추가
 def get_user_by_email(db: Session, email: str):
-    return db.query(User).filter(User.e_mail == email).first()
+    return db.query(User).filter(User.email == email).first()

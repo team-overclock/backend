@@ -11,7 +11,7 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 @router.post("/signup")
 def signup(user: UserCreate, db: Session = Depends(get_db)):
     # 이미 가입된 이메일인지 체크하는 로직을 crud에 추가하는 것이 좋습니다.
-    db_user = crud.get_user_by_email(db, email=user.e_mail)
+    db_user = crud.get_user_by_email(db, email=user.email)
     if db_user:
         raise HTTPException(status_code=400, detail="이미 등록된 이메일입니다.")
     
@@ -22,12 +22,12 @@ def signup(user: UserCreate, db: Session = Depends(get_db)):
 @router.post("/login")
 def login(login_data: UserLogin, response: Response, db: Session = Depends(get_db)):
     # 1. DB에서 해당 이메일 유저 찾기
-    user = crud.get_user_by_email(db, email=login_data.e_mail)
+    user = crud.get_user_by_email(db, email=login_data.email)
     if not user:
         raise HTTPException(status_code=400, detail="이메일 또는 비밀번호가 잘못되었습니다.")
 
     # 2. 비밀번호 검증 (security.py의 함수 사용)
-    if not verify_password(login_data.password, user.passwd):
+    if not verify_password(login_data.password, user.password):
         raise HTTPException(status_code=400, detail="이메일 또는 비밀번호가 잘못되었습니다.")
 
     # 3. 세션 쿠키 설정 (보안 전공자의 디테일)
