@@ -34,7 +34,7 @@ class Version(Base):
     registered_at = Column(DateTime, nullable=False, default=func.now())
     is_active = Column(Boolean, nullable=False, default=True)
 
-    regions: Mapped[list["Region"]] = relationship("Region", back_populates="version")
-    properties: Mapped[list["Property"]] = relationship("Property", back_populates="version")
-    infrastructures: Mapped[list["Infrastructure"]] = relationship("Infrastructure", back_populates="version")
-    recommendations: Mapped[list["Recommendation"]] = relationship("Recommendation", back_populates="version")
+    regions: Mapped[list["Region"]] = relationship("Region", back_populates="version", cascade="save-update, merge")
+    properties: Mapped[list["Property"]] = relationship("Property", back_populates="version", cascade="save-update, merge")
+    infrastructures: Mapped[list["Infrastructure"]] = relationship("Infrastructure", back_populates="version", cascade="save-update, merge")
+    recommendations: Mapped[list["Recommendation"]] = relationship("Recommendation", back_populates="version", cascade="save-update, merge")

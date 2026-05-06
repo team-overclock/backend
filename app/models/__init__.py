@@ -6,6 +6,8 @@ from .infrastructure_type import InfrastructureType
 from .infrastructure import Infrastructure
 from .recommendation import Recommendation
 from .recommendation_infra_priority import RecommendationInfraPriority
-from .score import Score
+from .property_score import PropertyScore
+from .infrastructure_score import InfrastructureScore
+from .property_infrastructure_distance import PropertyInfrastructureDistance
 from .user import User
 from .user_recommendation import UserRecommendation

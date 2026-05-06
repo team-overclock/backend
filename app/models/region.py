@@ -31,18 +31,18 @@ class Region(Base):
     __tablename__ = "region"
 
     id = Column(INTEGER(unsigned=True), primary_key=True, index=True)
-    parent_id = Column(INTEGER(unsigned=True), ForeignKey("region.id"), nullable=True)
+    parent_id = Column(INTEGER(unsigned=True), ForeignKey("region.id", ondelete="CASCADE", onupdate="CASCADE"), nullable=True)
     depth = Column(TINYINT(unsigned=True), nullable=False)
     name = Column(String(80), nullable=False)
     full_name = Column(String(255), nullable=False)
-    version_id = Column(INTEGER(unsigned=True), ForeignKey("version.id"), nullable=False)
+    version_id = Column(INTEGER(unsigned=True), ForeignKey("version.id", ondelete="RESTRICT", onupdate="CASCADE"), nullable=False)
 
     parent: Mapped["Region"] = relationship("Region", remote_side=[id], back_populates="children")
-    children: Mapped[list["Region"]] = relationship("Region", back_populates="parent")
-    properties: Mapped[list["Property"]] = relationship("Property", back_populates="region")
-    infrastructures: Mapped[list["Infrastructure"]] = relationship("Infrastructure", back_populates="region")
-    users: Mapped[list["User"]] = relationship("User", back_populates="region")
-    recommendations: Mapped[list["Recommendation"]] = relationship("Recommendation", back_populates="region")
+    children: Mapped[list["Region"]] = relationship("Region", back_populates="parent", cascade="all, delete-orphan")
+    properties: Mapped[list["Property"]] = relationship("Property", back_populates="region", cascade="all, delete-orphan")
+    infrastructures: Mapped[list["Infrastructure"]] = relationship("Infrastructure", back_populates="region", cascade="all, delete-orphan")
+    users: Mapped[list["User"]] = relationship("User", back_populates="region", cascade="save-update, merge")
+    recommendations: Mapped[list["Recommendation"]] = relationship("Recommendation", back_populates="region", cascade="all, delete-orphan")
     version: Mapped["Version"] = relationship("Version", back_populates="regions")
 
     def to_dict(self):

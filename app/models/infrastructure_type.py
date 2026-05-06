@@ -24,8 +24,8 @@ class InfrastructureType(Base):
     id = Column(TINYINT(unsigned=True), primary_key=True, index=True)
     name = Column(String(100), nullable=False, unique=True)
 
-    infrastructures: Mapped[list["Infrastructure"]] = relationship("Infrastructure", back_populates="type")
-    usage_in_recommendations: Mapped[list["RecommendationInfraPriority"]] = relationship("RecommendationInfraPriority", back_populates="infrastructure_type")
+    infrastructures: Mapped[list["Infrastructure"]] = relationship("Infrastructure", back_populates="type", cascade="all, delete-orphan")
+    usage_in_recommendations: Mapped[list["RecommendationInfraPriority"]] = relationship("RecommendationInfraPriority", back_populates="infrastructure_type", cascade="all, delete-orphan")
 
     def to_dict(self):
         """응답용 데이터로 변환 및 반환"""

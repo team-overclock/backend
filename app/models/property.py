@@ -7,7 +7,7 @@ from .base import Base
 
 
 if TYPE_CHECKING:
-    from . import Region, Score, Version
+    from . import Region, PropertyScore, PropertyInfrastructureDistance, Version
 
 class Property(Base):
     """
@@ -27,13 +27,14 @@ class Property(Base):
 
     - region: 동네 정보
     - recommendation_entries: 해당 부동산이 포함된 추천 항목 목록
+    - infrastructure_distances: 해당 부동산과 인프라 간의 거리 정보 목록
     - version: 버전 정보
     """
 
     __tablename__ = "property"
 
     id = Column(INTEGER(unsigned=True), primary_key=True, index=True)
-    region_id = Column(INTEGER(unsigned=True), ForeignKey("region.id"), nullable=False)
+    region_id = Column(INTEGER(unsigned=True), ForeignKey("region.id", ondelete="CASCADE", onupdate="CASCADE"), nullable=False)
     name = Column(String(255), nullable=False)
     land_lot_address = Column(String(255), nullable=False)
     road_name_address = Column(String(255), nullable=True)
@@ -43,8 +44,9 @@ class Property(Base):
     deposit_price_max = Column(BIGINT(unsigned=True))
     latitude = Column(Numeric(10, 8), nullable=False)
     longitude = Column(Numeric(11, 8), nullable=False)
-    version_id = Column(INTEGER(unsigned=True), ForeignKey("version.id"), nullable=False)
+    version_id = Column(INTEGER(unsigned=True), ForeignKey("version.id", ondelete="RESTRICT", onupdate="CASCADE"), nullable=False)
 
     region: Mapped["Region"] = relationship("Region", back_populates="properties")
-    recommendation_entries: Mapped[list["Score"]] = relationship("Score", back_populates="property")
+    recommendation_entries: Mapped[list["PropertyScore"]] = relationship("PropertyScore", back_populates="property", cascade="all, delete-orphan")
+    infrastructure_distances: Mapped[list["PropertyInfrastructureDistance"]] = relationship("PropertyInfrastructureDistance", back_populates="property", cascade="all, delete-orphan")
     version: Mapped["Version"] = relationship("Version", back_populates="properties")
