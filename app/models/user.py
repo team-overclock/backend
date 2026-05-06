@@ -34,12 +34,12 @@ class User(Base):
     name = Column(String(50), nullable=False)
     email = Column(String(255), nullable=False, unique=True)
     _password = Column("password", String(100), nullable=False)
-    region_id = Column(INTEGER(unsigned=True), ForeignKey("region.id"))
+    region_id = Column(INTEGER(unsigned=True), ForeignKey("region.id", ondelete="SET NULL", onupdate="CASCADE"))
     created_at = Column(DateTime, nullable=False, default=func.now())
     updated_at = Column(DateTime, nullable=False, default=func.now(), onupdate=func.now())
 
     region: Mapped["Region"] = relationship("Region", back_populates="users")
-    recommendations: Mapped[list["UserRecommendation"]] = relationship("UserRecommendation", back_populates="user")
+    recommendations: Mapped[list["UserRecommendation"]] = relationship("UserRecommendation", back_populates="user", cascade="all, delete-orphan")
 
     @property
     def password(self) -> str:

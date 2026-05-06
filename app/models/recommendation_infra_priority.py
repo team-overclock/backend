@@ -22,8 +22,8 @@ class RecommendationInfraPriority(Base):
 
     __tablename__ = "recommendation_infra_priority"
 
-    recommendation_id = Column(INTEGER(unsigned=True), ForeignKey("recommendation.id"), primary_key=True)
-    infrastructure_type_id = Column(TINYINT(unsigned=True), ForeignKey("infrastructure_type.id"), primary_key=True)
+    recommendation_id = Column(INTEGER(unsigned=True), ForeignKey("recommendation.id", ondelete="CASCADE", onupdate="CASCADE"), primary_key=True)
+    infrastructure_type_id = Column(TINYINT(unsigned=True), ForeignKey("infrastructure_type.id", ondelete="CASCADE", onupdate="CASCADE"), primary_key=True)
     priority = Column(TINYINT(unsigned=True), nullable=False)
 
     recommendation: Mapped["Recommendation"] = relationship("Recommendation", back_populates="infra_priorities")

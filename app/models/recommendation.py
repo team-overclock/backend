@@ -8,7 +8,7 @@ from .base import Base
 
 
 if TYPE_CHECKING:
-    from . import Region, RecommendationInfraPriority, Score, UserRecommendation, Version
+    from . import Region, RecommendationInfraPriority, PropertyScore, UserRecommendation, Version
 
 class Recommendation(Base):
     """
@@ -26,7 +26,7 @@ class Recommendation(Base):
 
     - region: 동네 정보
     - infra_priorities: 추천 요청 시 선택한 인프라 우선순위 목록
-    - scores: 해당 추천 결과인 부동산에 대한 점수 목록
+    - property_scores: 해당 추천 결과인 부동산에 대한 점수 목록
     - request_users: 해당 조합으로 추천을 요청한 사용자 목록
     - version: 버전 정보
     """
@@ -35,17 +35,17 @@ class Recommendation(Base):
 
     id = Column(INTEGER(unsigned=True), primary_key=True, index=True)
     hash = Column(String(64), nullable=False, unique=True)
-    region_id = Column(INTEGER(unsigned=True), ForeignKey("region.id"), nullable=False)
+    region_id = Column(INTEGER(unsigned=True), ForeignKey("region.id", ondelete="CASCADE", onupdate="CASCADE"), nullable=False)
     sale_price_min = Column(BIGINT(unsigned=True))
     sale_price_max = Column(BIGINT(unsigned=True))
     deposit_price_min = Column(BIGINT(unsigned=True))
     deposit_price_max = Column(BIGINT(unsigned=True))
     created_at = Column(DateTime, nullable=False, default=func.now())
     finished_at = Column(DateTime)
-    version_id = Column(INTEGER(unsigned=True), ForeignKey("version.id"), nullable=False)
+    version_id = Column(INTEGER(unsigned=True), ForeignKey("version.id", ondelete="RESTRICT", onupdate="CASCADE"), nullable=False)
 
     region: Mapped["Region"] = relationship("Region", back_populates="recommendations")
-    infra_priorities: Mapped[list["RecommendationInfraPriority"]] = relationship("RecommendationInfraPriority", back_populates="recommendation")
-    scores: Mapped[list["Score"]] = relationship("Score", back_populates="recommendation")
-    request_users: Mapped[list["UserRecommendation"]] = relationship("UserRecommendation", back_populates="recommendation")
+    infra_priorities: Mapped[list["RecommendationInfraPriority"]] = relationship("RecommendationInfraPriority", back_populates="recommendation", cascade="all, delete-orphan")
+    property_scores: Mapped[list["PropertyScore"]] = relationship("PropertyScore", back_populates="recommendation", cascade="all, delete-orphan")
+    request_users: Mapped[list["UserRecommendation"]] = relationship("UserRecommendation", back_populates="recommendation", cascade="all, delete-orphan")
     version: Mapped["Version"] = relationship("Version", back_populates="recommendations")
