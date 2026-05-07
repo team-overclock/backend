@@ -11,12 +11,6 @@ WORKDIR /app
 COPY --from=ghcr.io/astral-sh/uv:0.11.8 /uv /uvx /usr/local/bin/
 RUN uv python install 3.11
 COPY root/ /
-RUN mkdir -p ./scripts/bin
-COPY scripts/*.py ./scripts
-COPY --chmod=755 scripts/bin/* ./scripts/bin
-RUN  for file in ./scripts/bin/*; do \
-        mv "$file" /usr/local/bin/"$(basename "${file%.*}")"; \
-    done
 
 
 
@@ -37,6 +31,7 @@ FROM prod-base AS prod
 COPY --from=prod-build $VIRTUAL_ENV $VIRTUAL_ENV
 COPY data ./data
 COPY app ./app
+COPY scripts ./scripts
 WORKDIR /app/scripts
 
 

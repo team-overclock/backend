@@ -14,11 +14,26 @@ fi
 EMAIL="$1"
 USERNAME="${2:-${EMAIL%@*}}"
 
-stty -echo
-printf "Password: "
-read -r PASSWORD
-stty echo
-echo
+input_password() {
+	local label="$1"
+	local PASSWORD
+	stty -echo
+	printf "$label" >&2
+	read -r PASSWORD
+	stty echo
+	echo >&2
+	echo "$PASSWORD"
+}
+
+PASSWORD=$(input_password "Password: ")
+PASSWORD_CONFIRMATION=$(input_password "Password Confirmation: ")
+if [ -z "$PASSWORD" ]; then
+	echo "Password cannot be empty"
+	exit 1
+elif [ "$PASSWORD" != "$PASSWORD_CONFIRMATION" ]; then
+	echo "Passwords do not match"
+	exit 1
+fi
 
 DATA=$(jq -n \
 	--arg un "$USERNAME" \

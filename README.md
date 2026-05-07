@@ -13,8 +13,7 @@
 - `app/schemas/`: 요청/응답 스키마
 - `tests/`: 앱 테스트 케이스 코드
 - `root/`: 도커 이미지 빌드 시 루트 경로에 복사할 대상 폴더
-- `scripts/*.py`: 호스트에서 사용 가능한 파이썬 스크립트 파일
-- `scripts/bin/`: 이미지 내장 명령어용 스크립트 파일
+- `scripts/`: 파이썬, bash 스크립트 파일, 상단에 `#!`로 시작한다면 컨테이너 내에서 명령어로 변환됨
 
 ## requirements.txt
 
@@ -65,6 +64,13 @@ usage: `docker exec -it <container_name> drop-tables [-y|--yes]`
 usage: `docker exec -it <container_name> insert-data`
 
 `data` 폴더 내 csv 파일 내 데이터를 데이터베이스에 삽입 (테이블 자동 생성)
+
+### create-user
+
+usage: `docker exec -it <container_name> create-user <email> [name]`
+
+데이터베이스에 사용자 추가
+이름 생략 시 이메일 앞 문자열이 사용자명으로 생성됨.
 
 ## 테스트
 

@@ -1,3 +1,5 @@
+#!/usr/bin/with-contenv python3
+
 import re
 import os
 import sys
@@ -1084,10 +1086,11 @@ def main(directory_path: str):
 
 
 if __name__ == "__main__":
-    if "-h" in sys.argv or "--help" in sys.argv:
-        usage()
-        sys.exit(0)
-    elif len(sys.argv) != 2:
-        usage()
-        sys.exit(1)
-    main(sys.argv[1])
+    # if "-h" in sys.argv or "--help" in sys.argv:
+    #     usage()
+    #     sys.exit(0)
+    # elif len(sys.argv) != 2:
+    #     usage()
+    #     sys.exit(1)
+    # main(sys.argv[1])
+    main("/app/data")
