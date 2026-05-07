@@ -44,3 +44,10 @@ class Region(Base):
     users: Mapped[list["User"]] = relationship("User", back_populates="region")
     recommendations: Mapped[list["Recommendation"]] = relationship("Recommendation", back_populates="region")
     version: Mapped["Version"] = relationship("Version", back_populates="regions")
+
+    def to_dict(self):
+        """응답용 데이터로 변환 및 반환"""
+        return {
+            "id": self.id,
+            "name": self.full_name,
+        }

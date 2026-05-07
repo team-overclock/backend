@@ -18,11 +18,11 @@ def get_regions(
     db: Session = Depends(get_db),
 ) -> RegionsResponse:
     """regions 목록 반환"""
-    _, items = get_regions_by_depth(db, 2)
-    return RegionsResponse(
-        total=len(items),
-        items=items,
-    )
+    items = get_regions_by_depth(db, 2)
+    return {
+        "total": len(items),
+        "items": [r.to_dict() for r in items],
+    }
 
 
 @router.get("/infrastructure-types")
@@ -31,7 +31,7 @@ def get_infrastructure_types(
 ) -> InfrastructureTypesResponse:
     """인프라 유형 목록 반환"""
     items = get_all_infrastructure_types(db)
-    return InfrastructureTypesResponse(
-        total=len(items),
-        items=items,
-    )
+    return {
+        "total": len(items),
+        "items": items,
+    }
