@@ -26,3 +26,10 @@ class InfrastructureType(Base):
 
     infrastructures: Mapped[list["Infrastructure"]] = relationship("Infrastructure", back_populates="type")
     usage_in_recommendations: Mapped[list["RecommendationInfraPriority"]] = relationship("RecommendationInfraPriority", back_populates="infrastructure_type")
+
+    def to_dict(self):
+        """응답용 데이터로 변환 및 반환"""
+        return {
+            "id": self.id,
+            "name": self.name,
+        }

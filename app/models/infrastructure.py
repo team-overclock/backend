@@ -38,3 +38,10 @@ class Infrastructure(Base):
     type: Mapped["InfrastructureType"] = relationship("InfrastructureType", back_populates="infrastructures")
     region: Mapped["Region"] = relationship("Region", back_populates="infrastructures")
     version: Mapped["Version"] = relationship("Version", back_populates="infrastructures")
+
+    def to_dict(self):
+        """응답용 데이터로 변환 및 반환"""
+        return {
+            "id": self.id,
+            "name": self.name,
+        }
