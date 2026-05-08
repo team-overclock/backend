@@ -1,8 +1,9 @@
 """에러 응답 스키마 모듈."""
 
+from typing import Union
 from pydantic import BaseModel
 
-from .service import RegionsResponse, InfrastructureTypeItem
+from .service import RegionsResponse, InfrastructureTypesResponse
 
 
 class AppError(BaseModel):
@@ -20,4 +21,8 @@ class RegionError(AppError):
 class InfrastructureTypeError(AppError):
     """인프라 유형 에러 응답 모델."""
 
-    detail: InfrastructureTypeItem
+    detail: InfrastructureTypesResponse
+
+
+class RegionOrInfrastructureTypeError(BaseModel):
+    detail: Union[RegionsResponse, InfrastructureTypesResponse]
