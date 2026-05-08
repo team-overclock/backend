@@ -10,6 +10,7 @@ class UserInfo(BaseModel):
     email: EmailStr
     region_id: int | None = Field(description="사용자의 동네 ID 기본값")
     region_name: RegionName | None = Field(description="동네 ID에 해당하는 동네 이름")
+    created_at: datetime = Field(description="사용자 등록 일시")
 
 
 class UserInfoUpdateRequest(BaseModel):
