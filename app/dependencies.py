@@ -1,14 +1,14 @@
 from fastapi import Request, Depends, status
+from fastapi.exceptions import HTTPException
 from sqlalchemy.orm import Session
 
 from .core.exception import AppException
 from .core.session import get_session
-from .core.validate import verify_recommendation
 from .database import get_db
 from .models import User
 from .schemas.auth import UserSession
 from .crud.user import get_user_by_cuid
-from .crud.service import get_user_recommendations_by_user_id, get_latest_version
+from .crud.service import get_user_recommendations_by_user_id, get_recommendations_by_hash, get_latest_version
 
 
 def get_current_user_session(request: Request):
@@ -49,10 +49,32 @@ def get_current_recommendation(
     user: User = Depends(only_self_access),
 ):
     """
-    `{task_id}`에 해당하는 추천이 현재 세션의 사용자에게 속한 것인지 검증하는 의존성 함수.
-    - 추천이 존재하지 않거나, 현재 사용자가 요청한 추천이 아니면 400 에러를 발생시킴
+    `task_id` 값으로 시작하는 추천이 현재 세션의 사용자에게 속한 것인지 검증하는 의존성 함수.
+    - 전체 추천 중 `task_id`로 시작하는 `hash`를 가진 추천이 2개 이상이면 400 에러를 발생시킴
+    - 조회된 추천이 현재 사용자가 요청한 추천이 아니면 403 에러를 발생시킴
+    - 추천이 존재하지 않으면 404 에러를 발생시킴
     """
-    return verify_recommendation(db, task_id, user.id)
+
+    hash = task_id if len(task_id) >= 8 else None
+    items = get_recommendations_by_hash(db, task_id, size=2) if hash else []
+    if hash is None or len(items) > 1:
+        raise AppException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            message="task_id 값이 너무 짧습니다.",
+        )
+    if len(items) == 0:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+        )
+
+    item = items[0]
+    if user.id not in [x.user_id for x in item.request_users]:
+        raise AppException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            message="접근 권한이 없습니다.",
+        )
+    return item
+
 
 def get_current_user_recommendations(
     db: Session = Depends(get_db),

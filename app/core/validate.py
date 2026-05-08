@@ -1,7 +1,7 @@
 from fastapi import status
 from sqlalchemy.orm import Session
 
-from ..crud.service import get_regions_by_depth, get_region_by_id, get_all_infrastructure_types, get_infrastructure_by_id, get_infrastructure_by_ids, get_recommendation_by_hash_and_user_id
+from ..crud.service import get_regions_by_depth, get_region_by_id, get_all_infrastructure_types, get_infrastructure_by_id, get_infrastructure_by_ids
 from ..core.exception import AppException
 from ..models import InfrastructureType
 
@@ -59,16 +59,3 @@ def verify_infrastructure_types(db: Session, infrastructure_type_ids: list[int])
             },
         )
     return infras
-
-def verify_recommendation(db: Session, recommendation_hash: str | None, user_id: str | None):
-    """주어진 추천 hash가 유효한지 검증하는 함수. 유효하지 않으면 AppException을 발생시킴."""
-    if recommendation_hash is None or user_id is None:
-        return None
-
-    recommendation = get_recommendation_by_hash_and_user_id(db, recommendation_hash, user_id)
-    if not recommendation:
-        raise AppException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            message="유효하지 않은 추천입니다.",
-        )
-    return recommendation
