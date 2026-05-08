@@ -3,9 +3,11 @@ from sqlalchemy.orm import Session
 
 from .core.exception import AppException
 from .core.session import get_session
+from .core.validate import verify_recommendation
 from .database import get_db
 from .schemas.auth import UserSession
 from .crud.user import get_user_by_id
+from .crud.service import get_user_recommendations_by_user_id
 
 
 def get_current_user(request: Request):
@@ -38,3 +40,23 @@ def only_self_access(
             message="접근 권한이 없습니다.",
         )
     return user
+
+def get_current_recommendation(
+    task_id: str,
+    session: UserSession = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    `/recommendations/{task_id}` 엔드포인트에서 `task_id`에 해당하는 추천이 현재 세션의 사용자에게 속한 것인지 검증하는 의존성 함수.
+    `task_id`에 해당하는 추천이 존재하지 않거나, 존재하지만 현재 세션의 사용자에게 속하지 않으면 400 에러를 발생시킴
+    """
+    return verify_recommendation(db, task_id, session.id)
+
+def get_current_user_recommendations(
+    session: UserSession = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    현재 로그인된 사용자가 요청한 추천 목록을 반환하는 의존성 함수.
+    """
+    return get_user_recommendations_by_user_id(db, session.id)

@@ -21,6 +21,7 @@ from .routers import (
     public,
     auth,
     users,
+    recommendations,
 )
 
 
@@ -128,6 +129,7 @@ def create_app() -> FastAPI:
     app.include_router(public.router)
     app.include_router(auth.router)
     require_auth(users.router)
+    require_auth(recommendations.router)
     return app
 
 

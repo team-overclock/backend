@@ -3,14 +3,16 @@
 from fastapi import APIRouter, Depends, Request, status
 from sqlalchemy.orm import Session
 
-from ..models import User
+from ..models import User, UserRecommendation
 from ..database import get_db
 from ..core import session
 from ..core.exception import AppException
 from ..core.validate import verify_region
+from ..crud.service import get_user_recommendations_by_user_id
 from ..schemas.error import AppError, RegionError
 from ..schemas.user import UserInfoUpdateRequest, UserInfo, UserPasswordChangeRequest
-from ..dependencies import only_self_access
+from ..schemas.service import UserRecommendationsResponse
+from ..dependencies import only_self_access, get_current_user_recommendations
 
 router = APIRouter(
     prefix="/users/me",
@@ -82,3 +84,56 @@ def user_password_change(
     db.commit()
     # session.logout(request)  # 비밀번호 변경 후 세션 만료 (재로그인 요구)
     return
+
+
+@router.get(
+    "/recommendations",
+    status_code=status.HTTP_200_OK,
+    tags=["recommendations"],
+)
+def user_recommendations(
+    user: User = Depends(only_self_access),
+    user_recommendations: list[UserRecommendation] = Depends(get_current_user_recommendations),
+) -> UserRecommendationsResponse:
+    """추천 요청 목록 조회"""
+
+    print("################### DEBUG: User Recommendations ###################")
+    print("Received user recommendations request for user_id:", user.id)
+    print("Retrieved user recommendations:", [x.recommendation_id for x in user_recommendations])
+    print("################### DEBUG END: User Recommendations ###################")
+
+    return {
+        "total": 1,
+        "items": [
+            {
+                "task_id": "unique_hash_value",
+                "status": "completed",
+                "region_id": 1,
+                "name": "사용자 지정 추천 이름",
+                "infrastructure_type_ids": [1, 2, 3],
+                "sale_price": {
+                    "min": 1,
+                    "max": 1
+                },
+                "deposit_price": {
+                    "min": 1,
+                    "max": 1
+                },
+            },
+            {
+                "task_id": "unique_hash_value",
+                "status": "in_progress",
+                "region_id": 1,
+                "name": None,
+                "infrastructure_type_ids": [1, 2, 3],
+                "sale_price": {
+                    "min": 1,
+                    "max": 1
+                },
+                "deposit_price": {
+                    "min": 1,
+                    "max": 1
+                },
+            },
+        ],
+    }
