@@ -1,19 +1,41 @@
 """애플리케이션 팩토리 및 FastAPI 인스턴스 정의 모듈."""
 
+import os
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, APIRouter, Request, Depends
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.exceptions import HTTPException as StarletteHTTPException
+from starlette.middleware.sessions import SessionMiddleware
 
-from .models import Base
-from .database import engine
+from .models import Base, User
+from .database import engine, SessionLocal
+from .crud.user import create_user
 from .core.exception import AppException
+from .schemas.error import AppError
+from .schemas.auth import UserCreateRequest
+from .dependencies import get_current_user
 from .routers import (
     scalar,
     health,
     public,
+    auth,
+    users,
 )
+
+
+def create_guest_user():
+    """게스트 사용자 생성 (초기 데이터)"""
+    db = SessionLocal()
+    try:
+        if db.query(User).count() == 0:
+            create_user(db, UserCreateRequest(
+                name="guest",
+                email="guest@example.com",
+                password="guest",
+            ))
+    finally:
+        db.close()
 
 
 @asynccontextmanager
@@ -25,6 +47,10 @@ async def lifespan(app: FastAPI):
 
     # 데이터베이스 내 테이블 자동 생성
     Base.metadata.create_all(bind=engine)
+
+    # 게스트 유저 생성
+    create_guest_user()
+
     yield
 
 
@@ -44,6 +70,16 @@ def create_app() -> FastAPI:
         allow_origins=["*"],
         allow_methods=["*"],
         allow_headers=["*"],
+    )
+
+    # http_only는 항상 설정됨: https://starlette.dev/middleware/#sessionmiddleware
+    app.add_middleware(
+        SessionMiddleware,
+        secret_key=os.getenv("SECRET_KEY", "x"),
+        session_cookie="session",
+        same_site="lax",                                  # CSRF 방어
+        https_only=os.getenv("APP_ENV") == "production",  # 운영 모드에서만 True
+        max_age=60 * 60 * 24,                             # 1일 동안 세션 유지
     )
 
     # 기본 에러 구조 변경
@@ -76,10 +112,22 @@ def create_app() -> FastAPI:
             },
         )
 
+    def require_auth(router: APIRouter):
+        """로그인 전용 라우터 자동 구성"""
+        app.include_router(
+            router,
+            dependencies=[Depends(get_current_user)],
+            responses={
+                401: {"model": AppError, "description": "로그인이 되어있지 않은 경우"},
+            },
+        )
+
     # Scalar 문서는 OpenAPI 목록에서 숨김
     app.include_router(scalar.router, prefix="/scalar", include_in_schema=False)
     app.include_router(health.router)
     app.include_router(public.router)
+    app.include_router(auth.router)
+    require_auth(users.router)
     return app
 
 
