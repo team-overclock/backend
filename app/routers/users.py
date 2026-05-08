@@ -11,7 +11,7 @@ from ..core.validate import verify_region
 from ..crud.service import get_user_recommendations_by_user_id
 from ..schemas.error import AppError, RegionError
 from ..schemas.user import UserInfoUpdateRequest, UserInfo, UserPasswordChangeRequest
-from ..schemas.service import UserRecommendationsResponse
+from ..schemas.service import UserRecommendations
 from ..dependencies import only_self_access, get_current_user_recommendations
 
 router = APIRouter(
@@ -98,7 +98,7 @@ def user_password_change(
 def user_recommendations(
     user: User = Depends(only_self_access),
     user_recommendations: list[UserRecommendation] = Depends(get_current_user_recommendations),
-) -> UserRecommendationsResponse:
+) -> UserRecommendations:
     """추천 요청 목록 조회"""
 
     print("################### DEBUG: User Recommendations ###################")
@@ -107,7 +107,7 @@ def user_recommendations(
     print("################### DEBUG END: User Recommendations ###################")
 
     return {
-        "total": 1,
+        "total": 2,
         "items": [
             {
                 "task_id": "unique_hash_value",

@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..schemas.error import AppError, RegionError
-from ..schemas.auth import UserCreateRequest, UserCreateResponse, UserLoginRequest
+from ..schemas.auth import UserCreateRequest, UserLoginRequest
 from ..schemas.user import UserInfo
 from ..core.exception import AppException
 from ..core import session
@@ -27,7 +27,7 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 def signup(
     body: UserCreateRequest,
     db: Session = Depends(get_db),
-) -> UserCreateResponse:
+) -> UserInfo:
     """회원가입 처리 함수. 이메일 중복 체크 및 동네 검증 후 사용자 생성."""
     user, created = create_user(db, body)
     if not created:

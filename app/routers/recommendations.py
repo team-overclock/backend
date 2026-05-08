@@ -9,11 +9,11 @@ from ..dependencies import only_self_access, get_current_recommendation
 from ..models import Recommendation
 from ..models import User
 from ..schemas.error import AppError, RegionOrInfrastructureTypeError
+from ..schemas.common import TaskID
 from ..schemas.service import (
-    TaskID,
-    CreateRecommendationRequest,
-    CreateRecommendationResponse,
-    RecommendationDetailResponse,
+    RecommendationCreateRequest,
+    RecommendationCreateResponse,
+    RecommendationReport,
 )
 
 
@@ -31,11 +31,11 @@ router = APIRouter(prefix="/recommendations", tags=["recommendations"])
         400: { "model": RegionOrInfrastructureTypeError, "description": "유효하지 않은 동네 및 인프라 유형이 포함되어 있는 경우" },
     }
 )
-def create_recommendation(
-    body: CreateRecommendationRequest,
+def request_generate_recommendation(
+    body: RecommendationCreateRequest,
     db: Session = Depends(get_db),
     user: User = Depends(only_self_access),
-) -> CreateRecommendationResponse:
+) -> RecommendationCreateResponse:
     """
     추천 요청을 받고 백그라운드에서 처리하도록 하는 엔드포인트.
     응답에 포함된 `task_id`로 추천 결과를 조회할 수 있음
@@ -74,7 +74,7 @@ def create_recommendation(
 def get_recommendation(
     task_id: TaskID,
     recommendation: Recommendation = Depends(get_current_recommendation),
-) -> RecommendationDetailResponse:
+) -> RecommendationReport:
     """추천 결과 조회"""
 
     print("################### DEBUG: Get Recommendation ###################")
