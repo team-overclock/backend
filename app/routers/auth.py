@@ -1,19 +1,75 @@
-from sqlalchemy.orm import Session
-from ..models.user import User
-from ..schemas.auth import UserCreate
-from ..core.security import hash_password
+""""인증 관련 엔드포인트 라우트 모듈."""
 
-def create_user(db: Session, user: UserCreate):
-    # 비밀번호 암호화
-    hashed_pwd = hash_password(user.password)
-    
-    db_user = User(
-        name=user.name,
-        e_mail=user.e_mail,
-        passwd=hashed_pwd, # 암호화된 비밀번호 저장
-        region=user.region
-    )
-    db.add(db_user)
-    db.commit()
-    db.refresh(db_user)
-    return db_user
+from fastapi import APIRouter, Depends, Request, status
+from sqlalchemy.orm import Session
+
+from ..database import get_db
+from ..schemas.error import AppError, RegionError
+from ..schemas.auth import UserCreateRequest, UserCreateResponse, UserLoginRequest
+from ..schemas.user import UserInfo
+from ..core.exception import AppException
+from ..core import session
+from ..crud.user import create_user, get_user_by_email
+
+
+router = APIRouter(prefix="/auth", tags=["auth"])
+
+
+# --- 회원가입 ---
+@router.post(
+    "/signup",
+    status_code=status.HTTP_201_CREATED,
+    responses={
+        400: { "model": RegionError, "description": "지원하지 않는 동네인 경우" },
+        409: { "model": AppError, "description": "이미 가입된 이메일인 경우" },
+    },
+)
+def signup(
+    body: UserCreateRequest,
+    db: Session = Depends(get_db),
+) -> UserCreateResponse:
+    """회원가입 처리 함수. 이메일 중복 체크 및 동네 검증 후 사용자 생성."""
+    user, created = create_user(db, body)
+    if not created:
+        raise AppException(
+            status_code=status.HTTP_409_CONFLICT,
+            message="이미 등록된 이메일입니다.",
+        )
+    return user
+
+
+# --- 로그인 (세션 발급) ---
+@router.post(
+    "/login",
+    status_code=status.HTTP_200_OK,
+    responses={
+        401: { "model": AppError, "description": "유효한 자격 증명이 아닌 경우" },
+    },
+)
+def login(
+    body: UserLoginRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+) -> UserInfo:
+    """로그인 처리 함수. 이메일과 비밀번호 검증 후 세션 발급."""
+    user = get_user_by_email(db, body.email)
+    if not user or not user.verify_password(body.password):
+        raise AppException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            message="이메일 또는 비밀번호가 잘못되었습니다.",
+        )
+    session.login(request, user)
+    return user
+
+
+# --- 로그아웃 (세션 삭제) ---
+@router.post(
+    "/logout",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def logout(
+    request: Request,
+):
+    """로그아웃 처리 함수. 세션 삭제."""
+    session.logout(request)
+    return

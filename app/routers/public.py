@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..schemas.service import RegionsResponse, InfrastructureTypesResponse
-from ..crud import get_regions_by_depth, get_all_infrastructure_types
+from ..crud.service import get_regions_by_depth, get_all_infrastructure_types
 
 
 router = APIRouter(
