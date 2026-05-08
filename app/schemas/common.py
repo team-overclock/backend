@@ -1,5 +1,6 @@
 from typing import Annotated, Literal, Union
 from pydantic import Field, EmailStr, BeforeValidator
+from datetime import datetime
 
 
 def empty_to_none(v: str | None):
@@ -25,3 +26,5 @@ PropertyName = Annotated[str, Field(description="매물 이름", examples=["삼�
 Score = Annotated[float, Field(description="추천 점수", ge=0, le=100)]
 PriceUnit = Annotated[int, Field(description="단위: 원")]
 Status = Annotated[Literal["completed", "in_progress", "failed"], Field(description="요청 처리 상태")]
+
+Datetime = Annotated[datetime, Field()]

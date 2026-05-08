@@ -68,15 +68,14 @@ def get_recommendation_by_hash(db: Session, recommendation_hash: str):
     """주어진 hash에 해당하는 추천을 반환하는 함수"""
     return db.query(Recommendation).filter(Recommendation.hash == recommendation_hash).first()
 
-def get_recommendation_by_hash_and_user_id(db: Session, recommendation_hash: str, user_id: str):
-    """주어진 hash와 user_id에 해당하는 추천을 반환하는 함수"""
+def get_recommendations_by_hash(db: Session, recommendation_hash: str, size: int = 2) -> list[Recommendation]:
+    """주어진 hash로 시작하는 추천 목록을 반환하는 함수. 최대 `size` 개수만큼 반환"""
     return db.query(Recommendation).join(
         UserRecommendation,
         Recommendation.id == UserRecommendation.recommendation_id,
     ).filter(
-        UserRecommendation.user_id == user_id,
-        Recommendation.hash == recommendation_hash,
-    ).first()
+        Recommendation.hash.startswith(recommendation_hash),
+    ).limit(size).all()
 
 def get_user_recommendations_by_user_id(db: Session, user_id: int):
     """주어진 user_id가 요청한 추천 목록을 반환하는 함수"""

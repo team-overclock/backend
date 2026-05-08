@@ -56,11 +56,15 @@ def request_generate_recommendation(
 
     # 입력받은 조건들을 기반으로 hash(task_id) 생성
     hash = "unique_hash_value"
+    status = "in_progress"
 
     # 추천 로직 백그라운드로 실행
     # 해당 hash 값이 이미 존재한다면(이미 같은 조건으로 추천한 적이 있다면) 추천 로직을 수행할 필요 없음
 
-    return {"task_id": hash}
+    return {
+        "task_id": hash,
+        "status": status,
+    }
 
 
 @router.get(
@@ -78,13 +82,31 @@ def get_recommendation(
     """추천 결과 조회"""
 
     print("################### DEBUG: Get Recommendation ###################")
-    print("task_id에 해당하는 검증이 완료된 추천:", recommendation)
+    print("task_id:", task_id)
+    print("추천 정보:", recommendation)
     print("################### DEBUG END: Get Recommendation ###################")
 
     return {
+        "task_id": "full_hash_value",
         "status": "completed",
-        "total": 1,
-        "items": [
+        "total": 2,
+        "request_data": {
+            "name": "string",
+            "region": "서울특별시 용산구 도원동",
+            "infrastructure_types": [
+                "지하철역",
+                "공원·녹지",
+            ],
+            "sale_price": {
+                "min": 0,
+                "max": 999999999999,
+            },
+            "deposit_price": {
+                "min": 0,
+                "max": 999999999999,
+            },
+        },
+        "properties": [
             {
                 "name": "삼성래미안",
                 "score": 87,
@@ -94,18 +116,11 @@ def get_recommendation(
                     "latitude": 37.53830000,
                     "longitude": 126.95532000,
                 },
-                "sale_price": {
-                    "min": 1200000000,
-                    "max": 1700000000,
-                },
-                "deposit_price": {
-                    "min": 440000000,
-                    "max": 750000000,
-                },
+                "sale_price": 1200000000,
+                "deposit_price": 440000000,
                 "infrastructure": [
                     {
-                        "type_id": 5,
-                        "type_name": "지하철역",
+                        "type": "지하철역",
                         "name": "효창공원앞",
                         "score": 93.3,
                         "distance": 0.6,
@@ -114,8 +129,7 @@ def get_recommendation(
                         "longitude": 126.96173072,
                     },
                     {
-                        "type_id": 2,
-                        "type_name": "공원·녹지",
+                        "type": "공원·녹지",
                         "name": "효창근린공원",
                         "score": 57.8,
                         "distance": 1.5,
@@ -135,14 +149,10 @@ def get_recommendation(
                     "longitude": 126.95842000,
                 },
                 "sale_price": None,
-                "deposit_price": {
-                    "min": 150000000,
-                    "max": 150000000,
-                },
+                "deposit_price": 150000000,
                 "infrastructure": [
                     {
-                        "type_id": 5,
-                        "type_name": "지하철역",
+                        "type": "지하철역",
                         "name": "효창공원앞",
                         "score": 76.5,
                         "distance": 1.3,
@@ -151,8 +161,7 @@ def get_recommendation(
                         "longitude": 126.96173072,
                     },
                     {
-                        "type_id": 2,
-                        "type_name": "공원·녹지",
+                        "type": "공원·녹지",
                         "name": "효창근린공원",
                         "score": 86.6,
                         "distance": 1.1,

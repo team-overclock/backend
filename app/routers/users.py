@@ -1,14 +1,13 @@
 """사용자 엔드포인트 라우트 모듈."""
 
+from datetime import datetime
 from fastapi import APIRouter, Depends, Request, status
 from sqlalchemy.orm import Session
 
 from ..models import User, UserRecommendation
 from ..database import get_db
-from ..core import session
 from ..core.exception import AppException
 from ..core.validate import verify_region
-from ..crud.service import get_user_recommendations_by_user_id
 from ..schemas.error import AppError, RegionError
 from ..schemas.user import UserInfoUpdateRequest, UserInfo, UserPasswordChangeRequest
 from ..schemas.service import UserRecommendations
@@ -110,33 +109,46 @@ def user_recommendations(
         "total": 2,
         "items": [
             {
+                "requested_at": datetime.now(),
+                "last_viewed_at": datetime.now(),
                 "task_id": "unique_hash_value",
                 "status": "completed",
-                "region_id": 1,
-                "name": "사용자 지정 추천 이름",
-                "infrastructure_type_ids": [1, 2, 3],
-                "sale_price": {
-                    "min": 1,
-                    "max": 1
-                },
-                "deposit_price": {
-                    "min": 1,
-                    "max": 1
+                "request_data": {
+                    "name": "사용자 지정 추천 이름",
+                    "region": "서울특별시 용산구 도원동",
+                    "infrastructure_types": [
+                        "지하철역",
+                    ],
+                    "sale_price": {
+                        "min": 0,
+                        "max": 999999999999,
+                    },
+                    "deposit_price": {
+                        "min": 0,
+                        "max": 999999999999,
+                    },
                 },
             },
             {
+                "requested_at": datetime.now(),
+                "last_viewed_at": datetime.now(),
                 "task_id": "unique_hash_value",
                 "status": "in_progress",
-                "region_id": 1,
-                "name": None,
-                "infrastructure_type_ids": [1, 2, 3],
-                "sale_price": {
-                    "min": 1,
-                    "max": 1
-                },
-                "deposit_price": {
-                    "min": 1,
-                    "max": 1
+                "request_data": {
+                    "name": None,
+                    "region": "서울특별시 용산구 새창로",
+                    "infrastructure_types": [
+                        "지하철역",
+                        "공원·녹지",
+                    ],
+                    "sale_price": {
+                        "min": 0,
+                        "max": 999999999999,
+                    },
+                    "deposit_price": {
+                        "min": 0,
+                        "max": 999999999999,
+                    },
                 },
             },
         ],
