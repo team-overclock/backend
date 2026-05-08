@@ -77,8 +77,15 @@ class RecommendationCreateResponse(BaseModel):
     status: Status
 
 
-class RecommendationReportItemInfrastructure(BaseModel):
-    """매물 주변 인프라 정보"""
+class RecommendationReportItemInfrastructureSummary(BaseModel):
+    """매물 주변 인프라 요약"""
+
+    type: InfrastructureType = Field(description="인프라 유형")
+    distance: float = Field(description="매물과의 거리(단위: m)")
+    walking_duration: int = Field(description="매물에서 인프라까지의 도보 시간(분)")
+
+class RecommendationReportItemInfrastructureDetail(BaseModel):
+    """매물 주변 인프라 상세 정보"""
 
     type: InfrastructureType = Field(description="인프라 유형")
     name: str = Field(description="인프라 이름")
@@ -88,22 +95,29 @@ class RecommendationReportItemInfrastructure(BaseModel):
     latitude: float = Field(description="위도")
     longitude: float = Field(description="경도")
 
-class RecommendationReportItem(BaseModel):
-    """추천 매물 및 주변 인프라"""
 
+class RecommendationReportItemSummary(BaseModel):
+    """추천 매물 및 주변 인프라 요약"""
+
+    id: PK_AI = Field(description="매물 고유 ID")
     name: PropertyName
     score: Score
     address: AddressDetails = Field(description="매물 주소 정보")
     sale_price: int | None = Field(description="매물의 매매 최소 가격")
     deposit_price: int | None = Field(description="매물의 전세 최소 가격")
-    infrastructure: list[RecommendationReportItemInfrastructure] = Field(description="매물 주변 인프라")
+    infrastructure: list[RecommendationReportItemInfrastructureSummary] = Field(description="매물 주변 인프라 요약 정보 (최대 2개)", max_length=2)
 
 class RecommendationReport(RecommendationCreateResponse):
     """추천 결과"""
 
     total: int | None = Field(description="추천 매물 개수 (`status`가 `in_progress`인 경우에만 `null`)")
     request_data: RecommendationCreateRequestResolved = Field(description="추천 요청 데이터")
-    properties: list[RecommendationReportItem] | None = Field(description="추천 매물 목록 (`status`가 `in_progress`인 경우에만 `null`)")
+    properties: list[RecommendationReportItemSummary] | None = Field(description="추천 매물 목록 (`status`가 `in_progress`인 경우에만 `null`)")
+
+
+class RecommendationReportItemDetail(RecommendationReportItemSummary):
+    """추천 매물 및 주변 인프라 상세 정보"""
+    infrastructure: list[RecommendationReportItemInfrastructureDetail] = Field(description="모든 매물 주변 인프라 상세 정보")
 
 
 class UserRecommendationsItem(RecommendationCreateResponse):

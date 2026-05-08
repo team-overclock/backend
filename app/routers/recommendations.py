@@ -9,11 +9,12 @@ from ..dependencies import only_self_access, get_current_recommendation
 from ..models import Recommendation
 from ..models import User
 from ..schemas.error import AppError, RegionOrInfrastructureTypeError
-from ..schemas.common import TaskID
+from ..schemas.common import TaskID, PK_AI
 from ..schemas.service import (
     RecommendationCreateRequest,
     RecommendationCreateResponse,
     RecommendationReport,
+    RecommendationReportItemDetail,
 )
 
 
@@ -69,17 +70,17 @@ def request_generate_recommendation(
 
 @router.get(
     "/{task_id}",
-    summary="추천 결과 조회",
+    summary="추천 결과 요약 정보 조회",
     status_code=status.HTTP_200_OK,
     responses={
         400: { "model": AppError, "description": "`task_id` 값이 유효하지 않은 경우" },
     }
 )
-def get_recommendation(
+def get_recommendation_summary(
     task_id: TaskID,
     recommendation: Recommendation = Depends(get_current_recommendation),
 ) -> RecommendationReport:
-    """추천 결과 조회"""
+    """추천 결과 요약 정보 조회"""
 
     print("################### DEBUG: Get Recommendation ###################")
     print("task_id:", task_id)
@@ -108,6 +109,7 @@ def get_recommendation(
         },
         "properties": [
             {
+                "id": 1,
                 "name": "삼성래미안",
                 "score": 87,
                 "address": {
@@ -121,25 +123,18 @@ def get_recommendation(
                 "infrastructure": [
                     {
                         "type": "지하철역",
-                        "name": "효창공원앞",
-                        "score": 93.3,
                         "distance": 0.6,
                         "walking_duration": 13,
-                        "latitude": 37.53895534,
-                        "longitude": 126.96173072,
                     },
                     {
                         "type": "공원·녹지",
-                        "name": "효창근린공원",
-                        "score": 57.8,
                         "distance": 1.5,
                         "walking_duration": 21,
-                        "latitude": 37.54523000,
-                        "longitude": 126.95993000,
                     },
                 ],
             },
             {
+                "id": 2,
                 "name": "도원",
                 "score": 79.3,
                 "address": {
@@ -153,23 +148,74 @@ def get_recommendation(
                 "infrastructure": [
                     {
                         "type": "지하철역",
-                        "name": "효창공원앞",
-                        "score": 76.5,
                         "distance": 1.3,
                         "walking_duration": 18,
-                        "latitude": 37.53895534,
-                        "longitude": 126.96173072,
                     },
                     {
                         "type": "공원·녹지",
-                        "name": "효창근린공원",
-                        "score": 86.6,
                         "distance": 1.1,
                         "walking_duration": 15,
-                        "latitude": 37.54523000,
-                        "longitude": 126.95993000,
                     },
                 ],
+            },
+        ],
+    }
+
+
+@router.get(
+    "/{task_id}/properties/{property_id}",
+    summary="추천 매물의 상세 정보 조회",
+    status_code=status.HTTP_200_OK,
+    responses={
+        400: { "model": AppError, "description": "`task_id` 값이 유효하지 않은 경우" },
+    }
+)
+def get_recommendation_property_detail(
+    task_id: TaskID,
+    property_id: PK_AI,
+    recommendation: Recommendation = Depends(get_current_recommendation),
+) -> RecommendationReportItemDetail:
+    """추천 결과 중 특정 매물의 상세 정보 조회"""
+
+    print("################### DEBUG: Get Recommendation ###################")
+    properties = [x for x in recommendation.property_scores if x.property_id == property_id]
+    property = properties[0] if len(properties) > 0 else None
+    print("task_id:", task_id)
+    print("property_id:", property_id)
+    print("추천 정보:", recommendation)
+    print("매물 정보:", property)
+    print("################### DEBUG END: Get Recommendation ###################")
+
+    return {
+        "id": 1,
+        "name": "삼성래미안",
+        "score": 87,
+        "address": {
+            "land_lot": "서울특별시 용산구 도원동 23",
+            "road_name": "서울특별시 용산구 새창로 70",
+            "latitude": 37.53830000,
+            "longitude": 126.95532000,
+        },
+        "sale_price": 1200000000,
+        "deposit_price": 440000000,
+        "infrastructure": [
+            {
+                "type": "지하철역",
+                "name": "효창공원앞",
+                "score": 93.3,
+                "distance": 0.6,
+                "walking_duration": 13,
+                "latitude": 37.53895534,
+                "longitude": 126.96173072,
+            },
+            {
+                "type": "공원·녹지",
+                "name": "효창근린공원",
+                "score": 57.8,
+                "distance": 1.5,
+                "walking_duration": 21,
+                "latitude": 37.54523000,
+                "longitude": 126.95993000,
             },
         ],
     }
