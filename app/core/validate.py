@@ -1,7 +1,7 @@
 from fastapi import status
 from sqlalchemy.orm import Session
 
-from ..crud import get_regions_by_depth, get_region_by_id, get_all_infrastructure_types, get_infrastructure_by_id
+from ..crud.service import get_regions_by_depth, get_region_by_id, get_all_infrastructure_types, get_infrastructure_by_id
 from ..core.exception import AppException
 
 
