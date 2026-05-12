@@ -1,5 +1,7 @@
 # backend
 
+개발 환경의 Python 버전은 `3.11.9`임을 참고해 주세요.
+
 ## 구조
 
 - `data/`: 데이터베이스에 삽입할 csv 파일 저장 폴더
@@ -13,7 +15,7 @@
 - `app/schemas/`: 요청/응답 스키마
 - `tests/`: 앱 테스트 케이스 코드
 - `root/`: 도커 이미지 빌드 시 루트 경로에 복사할 대상 폴더
-- `scripts/`: 파이썬, bash 스크립트 파일, 상단에 `#!`로 시작한다면 컨테이너 내에서 명령어로 변환됨
+- `scripts/`: 파이썬/bash 스크립트 파일, 상단에 `#!`로 시작한다면 컨테이너 내에서 명령어로 변환됨
 
 ## requirements.txt
 
@@ -52,25 +54,45 @@ fastapi dev app
 
 내장 명령어 목록 및 설명
 
-### drop-tables
+### create-user
 
-usage: `docker exec -it <container_name> drop-tables [-y|--yes]`
+데이터베이스에 사용자 추가
 
-연결된 데이터베이스의 모든 테이블 삭제.
-`-y` 또는 `--yes` 입력 시 삭제 여부를 묻지 않고 즉시 삭제함.
+```shell
+# name 생략 시 "@" 앞부분을 name으로 삽입
+docker exec -it <container_name> create-user <email> [name]
+```
 
 ### insert-data
 
-usage: `docker exec -it <container_name> insert-data`
-
 `data` 폴더 내 csv 파일 내 데이터를 데이터베이스에 삽입 (테이블 자동 생성)
 
-### create-user
+```shell
+docker exec -it <container_name> insert-data
+```
 
-usage: `docker exec -it <container_name> create-user <email> [name]`
+### insert-seeds
 
-데이터베이스에 사용자 추가
-이름 생략 시 이메일 앞 문자열이 사용자명으로 생성됨.
+> [!IMPORTANT]
+> `insert-data`가 먼저 수행되어야 함
+
+데이터베이스에 랜덤 추천 데이터 삽입.
+
+```shell
+# number_of_recommendation 기본값: 30
+docker exec -it <container_name> insert-seeds [number_of_recommendation]
+```
+
+### drop-tables
+
+데이블 삭제
+
+```shell
+docker exec -it <container_name> drop-tables [-y|--yes]
+```
+
+연결된 데이터베이스의 모든 테이블 삭제.
+`-y` 또는 `--yes` 입력 시 삭제 여부를 묻지 않고 즉시 삭제함.
 
 ## 테스트
 

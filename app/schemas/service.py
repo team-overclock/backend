@@ -34,13 +34,13 @@ Score = Annotated[float, Field(description="추천 점수", ge=0, le=100)]
 PriceUnit = Annotated[int, Field(description="단위: 원")]
 
 class PriceRange(BaseModel):
-    """가격 범위 모델"""
+    """가격 범위"""
 
     min: PriceUnit
     max: PriceUnit
 
 class AddressDetails(BaseModel):
-    """주소 정보 모델"""
+    """주소 정보"""
 
     land_lot: str = Field(description="지번 주소")
     road_name: str | None = Field(description="도로명 주소")
@@ -49,22 +49,22 @@ class AddressDetails(BaseModel):
 
 
 class CreateRecommendationRequest(BaseModel):
-    """추천 요청 모델"""
+    """추천 생성 요청"""
 
     region_id: int = Field(description="관심 있는 동네 ID")
     name: str | None = Field(None, description="화면에 표시할 사용자 지정 추천 이름")
-    infrastructure_type_ids: list[int] = Field(description="관심 있는 인프라 유형 ID 목록. 나열된 순서대로 가중치가 적용됨", min_length=1)
+    infrastructure_type_ids: list[int] = Field(description="관심 있는 인프라 유형 ID 목록 (나열된 순서대로 높은 가중치 부여)", min_length=1)
     sale_price: PriceRange | None = Field(None, description="희망 매매 가격 범위")
     deposit_price: PriceRange | None = Field(None, description="희망 전세 가격 범위")
 
 class CreateRecommendationResponse(BaseModel):
-    """추천 응답 모델"""
+    """추천 생성 요청에 대한 응답"""
 
     task_id: TaskID
 
 
 class InfrastructureItem(BaseModel):
-    """인프라 정보 모델"""
+    """매물 주변 인프라 정보"""
 
     type_id: int = Field(description="인프라 유형 id")
     type_name: InfrastructureType = Field(description="인프라 유형")
@@ -76,7 +76,7 @@ class InfrastructureItem(BaseModel):
     longitude: float = Field(description="경도")
 
 class RecommendationItem(BaseModel):
-    """추천 아이템(매물) 모델"""
+    """추천 매물 및 주변 인프라"""
 
     name: str = Field(description="매물 이름")
     score: Score
@@ -86,15 +86,15 @@ class RecommendationItem(BaseModel):
     infrastructure: list[InfrastructureItem] = Field(description="매물 주변 인프라 목록")
 
 class RecommendationDetailResponse(BaseModel):
-    """추천 결과 조회 응답 모델"""
+    """추천 결과"""
 
     status: Status
-    total: int | None = Field(description="추천 결과 개수 (`status`가 `in_progress`인 경우에만 `null`)")
-    items: list[RecommendationItem] | None = Field(description="추천 결과 목록 (`status`가 `in_progress`인 경우에만 `null`)")
+    total: int | None = Field(description="추천 매물 개수 (`status`가 `in_progress`인 경우에만 `null`)")
+    items: list[RecommendationItem] | None = Field(description="추천 매물 목록 (`status`가 `in_progress`인 경우에만 `null`)")
 
 
 class UserRecommendationItem(BaseModel):
-    """추천 요청 시 선택한 조건 데이터 모델"""
+    """추천 요청 시 선택한 조건"""
 
     task_id: TaskID
     status: Status
@@ -105,7 +105,7 @@ class UserRecommendationItem(BaseModel):
     deposit_price: PriceRange | None = Field(description="전세 가격 범위")
 
 class UserRecommendationsResponse(BaseModel):
-    """사용자별 추천 요청 목록 조회 응답 모델"""
+    """추천 요청 목록"""
 
     total: int = Field(description="추천 요청 수")
     items: list[UserRecommendationItem] = Field(description="추천 요청 목록")

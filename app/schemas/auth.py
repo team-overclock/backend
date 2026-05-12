@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, Field, EmailStr
 from datetime import datetime
 
 from .common import UserName, Password, RegionName
@@ -13,7 +13,7 @@ class UserCreateRequest(BaseModel):
     name: UserName
     email: EmailStr
     password: Password
-    region_id: int | None = None
+    region_id: int | None = Field(None, description="동네 ID")
 
 class UserCreateResponse(BaseModel):
     id: str

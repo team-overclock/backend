@@ -7,7 +7,7 @@ from ..models import InfrastructureType
 
 
 def verify_region(db: Session, region_id: int, depth: int = 2):
-    """주어진 region이 유효한지 검증하는 함수. 유효하지 않으면 AppException을 발생시킴."""
+    """주어진 region_id가 유효한지 검증하는 함수. 유효하지 않으면 AppException을 발생시킴."""
 
     region = get_region_by_id(db, region_id, depth)
     if not region:
@@ -23,14 +23,14 @@ def verify_region(db: Session, region_id: int, depth: int = 2):
     return region
 
 def verify_infrastructure_type(db: Session, infrastructure_type_id: int):
-    """주어진 인프라가 유효한지 검증하는 함수. 유효하지 않으면 AppException을 발생시킴."""
+    """주어진 infrastructure_type_id가 유효한지 검증하는 함수. 유효하지 않으면 AppException을 발생시킴."""
 
     infra = get_infrastructure_by_id(db, infrastructure_type_id)
     if not infra:
         infras = get_all_infrastructure_types(db)
         raise AppException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            message="유효하지 않은 인프라입니다.",
+            message="유효하지 않은 인프라 유형입니다.",
             detail={
                 "total": len(infras),
                 "items": [i.to_dict() for i in infras],
@@ -39,7 +39,10 @@ def verify_infrastructure_type(db: Session, infrastructure_type_id: int):
     return infra
 
 def verify_infrastructure_types(db: Session, infrastructure_type_ids: list[int]) -> list[InfrastructureType]:
-    """주어진 인프라 목록이 유효한지 검증하는 함수. 유효하지 않으면 AppException을 발생시킴."""
+    """
+    주어진 인프라 유형 ID 목록의 중복을 제거한 후 모든 id가 유효한지 검증하는 함수.
+    유효하지 않은 값이 하나라도 포함되어 있으면 AppException을 발생시킴.
+    """
     if len(infrastructure_type_ids) == 0:
         return []
 
@@ -49,7 +52,7 @@ def verify_infrastructure_types(db: Session, infrastructure_type_ids: list[int])
         infras = get_all_infrastructure_types(db)
         raise AppException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            message="유효하지 않은 인프라가 포함되어 있습니다.",
+            message="유효하지 않은 인프라 유형이 포함되어 있습니다.",
             detail={
                 "total": len(infras),
                 "items": [i.to_dict() for i in infras],

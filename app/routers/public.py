@@ -13,7 +13,10 @@ router = APIRouter(
 )
 
 
-@router.get("/regions")
+@router.get(
+    "/regions",
+    summary="동네 목록 조회",
+)
 def get_regions(
     db: Session = Depends(get_db),
 ) -> RegionsResponse:
@@ -25,7 +28,10 @@ def get_regions(
     }
 
 
-@router.get("/infrastructure-types")
+@router.get(
+    "/infrastructure-types",
+    summary="인프라 유형 목록 조회",
+)
 def get_infrastructure_types(
     db: Session = Depends(get_db),
 ) -> InfrastructureTypesResponse:
