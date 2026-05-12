@@ -15,9 +15,9 @@ from ..crud.user import create_user, get_user_by_email
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
-# --- 회원가입 ---
 @router.post(
     "/signup",
+    summary="회원가입",
     status_code=status.HTTP_201_CREATED,
     responses={
         400: { "model": RegionError, "description": "지원하지 않는 동네인 경우" },
@@ -38,9 +38,9 @@ def signup(
     return user
 
 
-# --- 로그인 (세션 발급) ---
 @router.post(
     "/login",
+    summary="로그인 (세션 발급)",
     status_code=status.HTTP_200_OK,
     responses={
         401: { "model": AppError, "description": "유효한 자격 증명이 아닌 경우" },
@@ -62,9 +62,9 @@ def login(
     return user
 
 
-# --- 로그아웃 (세션 삭제) ---
 @router.post(
     "/logout",
+    summary="로그아웃 (세션 삭제)",
     status_code=status.HTTP_204_NO_CONTENT,
 )
 def logout(

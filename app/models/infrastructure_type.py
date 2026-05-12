@@ -28,7 +28,7 @@ class InfrastructureType(Base):
     usage_in_recommendations: Mapped[list["RecommendationInfrastructureTypePriority"]] = relationship("RecommendationInfrastructureTypePriority", back_populates="infrastructure_type", cascade="all, delete-orphan")
 
     def to_dict(self):
-        """응답용 데이터로 변환 및 반환"""
+        """id 및 name만 포함하는 딕셔너리를 반환"""
         return {
             "id": self.id,
             "name": self.name,

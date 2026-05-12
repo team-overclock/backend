@@ -27,15 +27,16 @@ def only_self_access(
     db: Session = Depends(get_db),
 ):
     """
-    `/users/me`, `/users/{user_cuid}` 엔드포인트 등에서 `user_cuid`가 본인 CUID와 일치하는 경우에만 접근을 허용하는 의존성 함수.
-    `user_cuid`가 본인 CIID와 다르면 404 에러를 발생시킴
-    - `{user_cuid}`가 포함된 경로는 해당 값을 기준으로 검증
-    - `/users/me`와 같은 `{user_cuid}`가 없는 경로에 사용 시에는 세션의 사용자 CUID로 검증
+    `{user_cuid}` 또는 세션으로 사용자를 검증하는 의존성 함수.
+    - `user_cuid`가 포함된 경로는 세션에 저장된 cuid와 비교 검증 및 DB에 해당 사용자가 존재하는지 검증
+    - `user_cuid`가 없는 경로는 세션에 저장된 cuid를 가진 사용자가 DB에 존재하는지 검증
+    - 검증 실패 시 403 에러를 발생시킴
     """
     user_cuid = request.path_params.get("user_cuid", session.cuid)
     user = get_user_by_cuid(db, user_cuid) if session.cuid == user_cuid else None
     if not user:
         # user_cuid가 세션의 사용자 CUID와 다르면 403 에러를 발생시킴
+        # {user_cuid}가 아닌 세션 기반인 경우에는 세션 cuid가 DB에 존재하지 않는 경우임
         raise AppException(
             status_code=status.HTTP_403_FORBIDDEN,
             message="접근 권한이 없습니다.",
@@ -48,8 +49,8 @@ def get_current_recommendation(
     user: User = Depends(only_self_access),
 ):
     """
-    `/recommendations/{task_id}` 엔드포인트에서 `task_id`에 해당하는 추천이 현재 세션의 사용자에게 속한 것인지 검증하는 의존성 함수.
-    `task_id`에 해당하는 추천이 존재하지 않거나, 존재하지만 현재 세션의 사용자에게 속하지 않으면 400 에러를 발생시킴
+    `{task_id}`에 해당하는 추천이 현재 세션의 사용자에게 속한 것인지 검증하는 의존성 함수.
+    - 추천이 존재하지 않거나, 현재 사용자가 요청한 추천이 아니면 400 에러를 발생시킴
     """
     return verify_recommendation(db, task_id, user.id)
 

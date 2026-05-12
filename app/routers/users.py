@@ -25,6 +25,7 @@ router = APIRouter(
 
 @router.get(
     "",
+    summary="사용자 정보 조회",
     status_code=status.HTTP_200_OK,
 )
 def user_info(
@@ -37,6 +38,7 @@ def user_info(
 
 @router.patch(
     "",
+    summary="사용자 정보 수정",
     status_code=status.HTTP_200_OK,
     responses={
         400: { "model": RegionError, "description": "지원하지 않는 동네인 경우" },
@@ -63,6 +65,7 @@ def user_info_update(
 
 @router.post(
     "/password",
+    summary="비밀번호 변경",
     status_code=status.HTTP_204_NO_CONTENT,
     responses={
         400: { "model": AppError, "description": "현재 비밀번호가 일치하지 않는 경우" },
@@ -88,6 +91,7 @@ def user_password_change(
 
 @router.get(
     "/recommendations",
+    summary="추천 요청 목록 조회",
     status_code=status.HTTP_200_OK,
     tags=["recommendations"],
 )

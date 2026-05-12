@@ -25,6 +25,7 @@ router = APIRouter(prefix="/recommendations", tags=["recommendations"])
 
 @router.post(
     "",
+    summary="추천 생성 요청",
     status_code=status.HTTP_202_ACCEPTED,
     responses={
         400: { "model": RegionOrInfrastructureTypeError, "description": "유효하지 않은 동네 및 인프라 유형이 포함되어 있는 경우" },
@@ -64,6 +65,7 @@ def create_recommendation(
 
 @router.get(
     "/{task_id}",
+    summary="추천 결과 조회",
     status_code=status.HTTP_200_OK,
     responses={
         400: { "model": AppError, "description": "`task_id` 값이 유효하지 않은 경우" },

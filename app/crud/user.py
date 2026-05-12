@@ -13,7 +13,7 @@ def create_user(db: Session, user: UserCreateRequest):
         created = True
         region = None if user.region_id is None else verify_region(db, user.region_id, 2)
 
-        # 비밀번호 암호화는 User 클래스에서 자동으로 처리되도록 함
+        # CUID 생성, 비밀번호 암호화는 User 클래스에서 자동으로 처리되도록 함
         db_user = User(
             name=user.name,
             email=user.email,

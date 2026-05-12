@@ -5,6 +5,6 @@ from pydantic import BaseModel
 
 
 class HealthResponse(BaseModel):
-    """기본 헬스 체크 응답 모델."""
+    """기본 헬스 체크 응답"""
 
     Hello: Literal["World"]

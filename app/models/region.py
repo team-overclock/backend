@@ -46,7 +46,7 @@ class Region(Base):
     version: Mapped["Version"] = relationship("Version", back_populates="regions")
 
     def to_dict(self):
-        """응답용 데이터로 변환 및 반환"""
+        """id 및 name(full_name)만 포함하는 딕셔너리를 반환"""
         return {
             "id": self.id,
             "name": self.full_name,

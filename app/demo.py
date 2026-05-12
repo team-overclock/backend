@@ -55,6 +55,7 @@ router = APIRouter(tags=["demo"])
 
 @router.post(
     "/auth/guest",
+    summary="게스트 로그인 (세션 발급)",
     status_code=status.HTTP_200_OK,
     tags=["auth"],
 )
