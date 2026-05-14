@@ -6,10 +6,8 @@ from ..core.exception import AppException
 from ..models import InfrastructureType
 
 
-def verify_region(db: Session, region_id: int | None, depth: int = 2):
+def verify_region(db: Session, region_id: int, depth: int = 2):
     """주어진 region이 유효한지 검증하는 함수. 유효하지 않으면 AppException을 발생시킴."""
-    if region_id is None:
-        return None
 
     region = get_region_by_id(db, region_id, depth)
     if not region:
@@ -24,10 +22,8 @@ def verify_region(db: Session, region_id: int | None, depth: int = 2):
         )
     return region
 
-def verify_infrastructure_type(db: Session, infrastructure_type_id: int | None):
+def verify_infrastructure_type(db: Session, infrastructure_type_id: int):
     """주어진 인프라가 유효한지 검증하는 함수. 유효하지 않으면 AppException을 발생시킴."""
-    if infrastructure_type_id is None:
-        return None
 
     infra = get_infrastructure_by_id(db, infrastructure_type_id)
     if not infra:
@@ -47,8 +43,9 @@ def verify_infrastructure_types(db: Session, infrastructure_type_ids: list[int])
     if len(infrastructure_type_ids) == 0:
         return []
 
-    infras = get_infrastructure_by_ids(db, infrastructure_type_ids)
-    if len(infras) != len(infrastructure_type_ids):
+    ids = list(dict.fromkeys(infrastructure_type_ids))  # 순서를 유지한 채로 중복 제거
+    infras = get_infrastructure_by_ids(db, ids)
+    if len(infras) != len(ids):
         infras = get_all_infrastructure_types(db)
         raise AppException(
             status_code=status.HTTP_400_BAD_REQUEST,

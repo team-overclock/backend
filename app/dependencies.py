@@ -8,10 +8,10 @@ from .database import get_db
 from .models import User
 from .schemas.auth import UserSession
 from .crud.user import get_user_by_cuid
-from .crud.service import get_user_recommendations_by_user_id
+from .crud.service import get_user_recommendations_by_user_id, get_latest_version
 
 
-def get_current_user(request: Request):
+def get_current_user_session(request: Request):
     session = get_session(request)
     if not session:
         # 세션이 없으면 401 에러를 발생시킴
@@ -23,7 +23,7 @@ def get_current_user(request: Request):
 
 def only_self_access(
     request: Request,
-    session: UserSession = Depends(get_current_user),
+    session: UserSession = Depends(get_current_user_session),
     db: Session = Depends(get_db),
 ):
     """
@@ -61,3 +61,14 @@ def get_current_user_recommendations(
     현재 로그인된 사용자가 요청한 추천 목록을 반환하는 의존성 함수.
     """
     return get_user_recommendations_by_user_id(db, user.id)
+
+def get_current_version(
+    db: Session = Depends(get_db),
+):
+    version = get_latest_version(db)
+    if not version:
+        raise AppException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            message="추천 생성에 필요한 버전 정보가 존재하지 않습니다.",
+        )
+    return version

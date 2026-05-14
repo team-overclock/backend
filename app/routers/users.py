@@ -53,7 +53,7 @@ def user_info_update(
     if body.email:
         user.email = body.email
     if "region_id" in body.model_dump(exclude_unset=True):
-        user.region = verify_region(db, body.region_id, 2)
+        user.region = None if body.region_id is None else verify_region(db, body.region_id, 2)
 
     db.commit()
     db.refresh(user)
