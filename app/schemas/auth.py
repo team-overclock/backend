@@ -1,6 +1,12 @@
 from pydantic import BaseModel, Field, EmailStr
 
 from .common import UserName, Password
+from .user import UserInfo
+
+
+class LoginCheckResponse(BaseModel):
+    is_logged_in: bool
+    user: UserInfo | None
 
 
 class UserLoginRequest(BaseModel):

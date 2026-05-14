@@ -5,14 +5,41 @@ from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..schemas.error import AppError, RegionError
-from ..schemas.auth import UserCreateRequest, UserLoginRequest
+from ..schemas.auth import LoginCheckResponse, UserCreateRequest, UserLoginRequest
 from ..schemas.user import UserInfo
+from ..dependencies import get_current_user_session
 from ..core.exception import AppException
 from ..core import session
-from ..crud.user import create_user, get_user_by_email
+from ..crud.user import create_user, get_user_by_cuid, get_user_by_email
 
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+
+@router.get(
+    "/check",
+    summary="로그인 상태 조회",
+    status_code=status.HTTP_200_OK,
+)
+def login_check(
+    request: Request,
+    db: Session = Depends(get_db),
+) -> LoginCheckResponse:
+    """로그인 상태 조회 함수."""
+
+    is_logged_in = False
+    user = None
+    try:
+        session = get_current_user_session(request)
+        user = get_user_by_cuid(db, session.cuid)
+        is_logged_in = True if user else False
+    except:
+        pass
+
+    return {
+        "is_logged_in": is_logged_in,
+        "user": user,
+    }
 
 
 @router.post(
