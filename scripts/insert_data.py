@@ -43,7 +43,8 @@ INFRA_FILE_MAP: dict[str, tuple[str, str]] = {
 
 
 def usage():
-    print("사용법: python insert_data.py <디렉토리_경로>")
+    print("사용법: python insert_data.py")
+    print("  - data 폴더 내 *.csv 파일 데이터를 데이터베이스에 삽입합니다.")
 
 
 def normalize_dong_for_region(dong_name: str) -> str:
@@ -1084,11 +1085,12 @@ def main(directory_path: str):
 
 
 if __name__ == "__main__":
-    # if "-h" in sys.argv or "--help" in sys.argv:
-    #     usage()
-    #     sys.exit(0)
-    # elif len(sys.argv) != 2:
-    #     usage()
-    #     sys.exit(1)
-    # main(sys.argv[1])
-    main("/app/data")
+    if "-h" in sys.argv or "--help" in sys.argv:
+        usage()
+        sys.exit(0)
+    elif len(sys.argv) != 1:
+        usage()
+        sys.exit(1)
+    else:
+        data_dir = Path(__file__).resolve().parent.parent / "data"
+        main(str(data_dir))
