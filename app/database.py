@@ -15,11 +15,11 @@ load_dotenv()
 DB_URL = os.getenv("DATABASE_URL")
 
 if not DB_URL:
-    db_host = os.getenv("DB_HOST", "127.0.0.1")
-    db_port = os.getenv("DB_PORT", "3306")
-    db_name = os.getenv("DB_NAME", "overclock")
-    db_user = quote_plus(os.getenv("DB_USER", "root"))
-    db_pass = quote_plus(os.getenv("DB_PASS", ""))
+    db_host = os.getenv("DB_HOST") or "127.0.0.1"
+    db_port = os.getenv("DB_PORT") or "3306"
+    db_name = os.getenv("DB_NAME") or "overclock"
+    db_user = quote_plus(os.getenv("DB_USER") or "root")
+    db_pass = quote_plus(os.getenv("DB_PASS") or "")
     DB_URL = f"mysql+pymysql://{db_user}:{db_pass}@{db_host}:{db_port}/{db_name}"
 
 

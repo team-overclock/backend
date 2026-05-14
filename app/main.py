@@ -12,7 +12,7 @@ from .models import Base
 from .database import engine, SessionLocal
 from .core.exception import AppException
 from .schemas.error import AppError
-from .dependencies import get_current_user
+from .dependencies import get_current_user_session
 from .routers import (
     scalar,
     health,
@@ -108,7 +108,7 @@ def create_app() -> FastAPI:
         """로그인 전용 라우터 자동 구성"""
         app.include_router(
             router,
-            dependencies=[Depends(get_current_user)],
+            dependencies=[Depends(get_current_user_session)],
             responses={
                 401: {"model": AppError, "description": "로그인이 되어있지 않은 경우"},
             },

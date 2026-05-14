@@ -5,8 +5,9 @@ from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..core.validate import verify_region, verify_infrastructure_types
-from ..dependencies import get_current_recommendation
+from ..dependencies import only_self_access, get_current_recommendation
 from ..models import Recommendation
+from ..models import User
 from ..schemas.error import AppError, RegionOrInfrastructureTypeError
 from ..schemas.service import (
     TaskID,
@@ -32,6 +33,7 @@ router = APIRouter(prefix="/recommendations", tags=["recommendations"])
 def create_recommendation(
     body: CreateRecommendationRequest,
     db: Session = Depends(get_db),
+    user: User = Depends(only_self_access),
 ) -> CreateRecommendationResponse:
     """
     추천 요청을 받고 백그라운드에서 처리하도록 하는 엔드포인트.
