@@ -29,7 +29,7 @@ class InfrastructureTypesResponse(BaseModel):
 # recommendation
 
 TaskID = Annotated[str, Field(description="추천 요청을 식별하는 고유 ID", min_length=1)]
-Status = Annotated[Literal["completed", "in_progress"], Field(description="요청 처리 상태")]
+Status = Annotated[Literal["completed", "in_progress", "failed"], Field(description="요청 처리 상태")]
 Score = Annotated[float, Field(description="추천 점수", ge=0, le=100)]
 PriceUnit = Annotated[int, Field(description="단위: 원")]
 
@@ -70,7 +70,7 @@ class InfrastructureItem(BaseModel):
     type_name: InfrastructureType = Field(description="인프라 유형")
     name: str = Field(description="인프라 이름")
     score: Score = Field(description="추천 점수 계산에 사용된 인프라 점수")
-    distance: float = Field(description="매물과의 거리(km)")
+    distance: float = Field(description="매물과의 거리(단위: m)")
     walking_duration: int = Field(description="매물에서 인프라까지의 도보 시간(분)")
     latitude: float = Field(description="위도")
     longitude: float = Field(description="경도")

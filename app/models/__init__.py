@@ -5,9 +5,9 @@ from .property import Property
 from .infrastructure_type import InfrastructureType
 from .infrastructure import Infrastructure
 from .recommendation import Recommendation
-from .recommendation_infra_priority import RecommendationInfraPriority
-from .property_score import PropertyScore
-from .infrastructure_score import InfrastructureScore
-from .property_infrastructure_distance import PropertyInfrastructureDistance
+from .recommendation_infrastructure_type_priority import RecommendationInfrastructureTypePriority
+from .recommendation_property_score import RecommendationPropertyScore
+from .recommendation_property_infrastructure_score import RecommendationPropertyInfrastructureScore
+from .property_infrastructure_score import PropertyInfrastructureScore
 from .user import User
 from .user_recommendation import UserRecommendation

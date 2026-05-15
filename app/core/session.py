@@ -5,12 +5,12 @@ from ..schemas.auth import UserSession
 
 
 def login(request: Request, user: User):
-    request.session["user_id"] = user.id
+    request.session["user_cuid"] = user.cuid
 
 def logout(request: Request):
     request.session.clear()
 
 
 def get_session(request: Request):
-    user_id = request.session.get("user_id")
-    return UserSession(id=user_id) if user_id else None
+    user_cuid = request.session.get("user_cuid")
+    return UserSession(cuid=user_cuid) if user_cuid else None

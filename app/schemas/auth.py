@@ -25,4 +25,4 @@ class UserCreateResponse(BaseModel):
 
 
 class UserSession(BaseModel):
-    id: str
+    cuid: str

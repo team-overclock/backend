@@ -4,7 +4,7 @@ from .common import Password, OptionalEmail, RegionName
 
 
 class UserInfo(BaseModel):
-    id: str
+    cuid: str
     name: str
     email: EmailStr
     region_id: int | None

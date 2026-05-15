@@ -470,8 +470,7 @@ def get_or_create_infrastructure(
             type_id=type_id,
             region_id=region_id,
             name=name,
-            latitude=latitude,
-            longitude=longitude,
+            coordinates=(longitude, latitude),
             version_id=version_id,
         )
         db.add(infra)
@@ -524,8 +523,7 @@ def get_or_create_property(
             sale_price_max=sale_price_max,
             deposit_price_min=deposit_price_min,
             deposit_price_max=deposit_price_max,
-            latitude=latitude,
-            longitude=longitude,
+            coordinates=(longitude, latitude),
             version_id=version_id,
         )
         db.add(prop)

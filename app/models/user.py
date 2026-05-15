@@ -4,8 +4,8 @@ from sqlalchemy.dialects.mysql import INTEGER
 from sqlalchemy.orm import Mapped, relationship
 from sqlalchemy.sql import func
 from cuid2 import cuid_wrapper
-from ..core.security import hash_password, verify_password
 
+from ..core.security import hash_password, verify_password
 from .base import Base
 
 
@@ -17,9 +17,11 @@ create_cuid = cuid_wrapper()
 class User(Base):
     """
     사용자 모델, 패스워드 자동 암호화 및 검증 기능 포함
-    - id: 사용자 ID (CUID/CUID2 문자열, 다른 사용자 pk를 유추하지 못하도록 int/auto-increment 대신 사용함)
+    - id: 사용자 ID (내부용, unsigned, 자동 증가)
+    - cuid: 사용자 CUID (외부용, 다른 사용자 unique ID를 유추하지 못하도록 id 대신 cuid를 외부용으로 사용함)
     - name: 사용자 이름
     - email: 사용자 이메일 (unique)
+    - _password: 대신 자동 암호화를 지원하는 password 프로퍼티로 접근 권장
     - region_id: 사용자가 선택한 기본 동네 ID (foreign key)
     - created_at: 계정 생성 시간
     - updated_at: 계정 정보 마지막 업데이트 시간
@@ -30,7 +32,8 @@ class User(Base):
 
     __tablename__ = "user"
 
-    id = Column(String(36), primary_key=True, default=create_cuid)
+    id = Column(INTEGER(unsigned=True), primary_key=True, index=True)
+    cuid = Column(String(36), unique=True, default=create_cuid)
     name = Column(String(50), nullable=False)
     email = Column(String(255), nullable=False, unique=True)
     _password = Column("password", String(100), nullable=False)
@@ -59,4 +62,4 @@ class User(Base):
     @property
     def region_name(self) -> str:
         """`user.region.full_name`을 편리하게 접근할 수 있도록 하는 프로퍼티"""
-        return self.region.full_name if self.region else None
+        return self.region.full_name if self.region_id is not None else None

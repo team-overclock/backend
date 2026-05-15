@@ -7,7 +7,7 @@ from .base import Base
 
 
 if TYPE_CHECKING:
-    from . import Infrastructure, RecommendationInfraPriority
+    from . import Infrastructure, RecommendationInfrastructureTypePriority
 
 class InfrastructureType(Base):
     """
@@ -25,7 +25,7 @@ class InfrastructureType(Base):
     name = Column(String(100), nullable=False, unique=True)
 
     infrastructures: Mapped[list["Infrastructure"]] = relationship("Infrastructure", back_populates="type", cascade="all, delete-orphan")
-    usage_in_recommendations: Mapped[list["RecommendationInfraPriority"]] = relationship("RecommendationInfraPriority", back_populates="infrastructure_type", cascade="all, delete-orphan")
+    usage_in_recommendations: Mapped[list["RecommendationInfrastructureTypePriority"]] = relationship("RecommendationInfrastructureTypePriority", back_populates="infrastructure_type", cascade="all, delete-orphan")
 
     def to_dict(self):
         """응답용 데이터로 변환 및 반환"""

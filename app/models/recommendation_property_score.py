@@ -7,9 +7,9 @@ from .base import Base
 
 
 if TYPE_CHECKING:
-    from . import Recommendation, Property, InfrastructureScore
+    from . import Recommendation, Property
 
-class PropertyScore(Base):
+class RecommendationPropertyScore(Base):
     """
     추천-부동산 점수 모델
     - recommendation_id: 추천 ID (foreign key)
@@ -18,15 +18,13 @@ class PropertyScore(Base):
 
     - recommendation: 추천 정보
     - property: 부동산 정보
-    - infrastructure_scores: 점수 계산에 사용된 인프라 점수 목록
     """
 
-    __tablename__ = "property_score"
+    __tablename__ = "recommendation_property_score"
 
     recommendation_id = Column(INTEGER(unsigned=True), ForeignKey("recommendation.id", ondelete="CASCADE", onupdate="CASCADE"), primary_key=True)
     property_id = Column(INTEGER(unsigned=True), ForeignKey("property.id", ondelete="CASCADE", onupdate="CASCADE"), primary_key=True)
     score = Column(DECIMAL(5, 2, unsigned=True), nullable=False)
 
     recommendation: Mapped["Recommendation"] = relationship("Recommendation", back_populates="property_scores")
-    property: Mapped["Property"] = relationship("Property", back_populates="recommendation_entries")
-    infrastructure_scores: Mapped[list["InfrastructureScore"]] = relationship("InfrastructureScore", back_populates="property_score", cascade="all, delete-orphan")
+    property: Mapped["Property"] = relationship("Property", back_populates="recommendations")
