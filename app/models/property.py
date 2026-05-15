@@ -1,15 +1,17 @@
 from typing import TYPE_CHECKING
-from sqlalchemy import Column, ForeignKey, Numeric, String
+from sqlalchemy import Column, ForeignKey, String
 from sqlalchemy.dialects.mysql import INTEGER, BIGINT
 from sqlalchemy.orm import Mapped, relationship
+from geoalchemy2 import Geometry
 
 from .base import Base
+from .mixin import CoordinatesMixin
 
 
 if TYPE_CHECKING:
-    from . import Region, PropertyScore, PropertyInfrastructureDistance, Version
+    from . import Region, RecommendationPropertyScore, PropertyInfrastructureScore, RecommendationPropertyInfrastructureScore, Version
 
-class Property(Base):
+class Property(Base, CoordinatesMixin):
     """
     부동산 모델
     - id: 부동산 ID (unsigned, 자동 증가)
@@ -21,13 +23,13 @@ class Property(Base):
     - sale_price_max: 매매가 최고 가격
     - deposit_price_min: 전세가 최저 가격
     - deposit_price_max: 전세가 최고 가격
-    - latitude: 부동산 위도
-    - longitude: 부동산 경도
+    - point: 부동산 point 바이너리 데이터
     - version_id: 해당 부동산 데이터의 버전 ID (foreign key)
 
     - region: 동네 정보
-    - recommendation_entries: 해당 부동산이 포함된 추천 항목 목록
-    - infrastructure_distances: 해당 부동산과 인프라 간의 거리 정보 목록
+    - recommendations: 해당 부동산을 추천 결과로 포함하는 추천 목록
+    - infrastructure_scores: 해당 부동산과 인프라 간의 점수 및 거리 정보 목록
+    - recommendation_infrastructure_scores: 추천 결과에서 가중치가 적용되어 계산된 인프라와의 점수 목록
     - version: 버전 정보
     """
 
@@ -42,11 +44,11 @@ class Property(Base):
     sale_price_max = Column(BIGINT(unsigned=True))
     deposit_price_min = Column(BIGINT(unsigned=True))
     deposit_price_max = Column(BIGINT(unsigned=True))
-    latitude = Column(Numeric(10, 8), nullable=False)
-    longitude = Column(Numeric(11, 8), nullable=False)
+    point = Column(Geometry("POINT"), nullable=False, index=True)
     version_id = Column(INTEGER(unsigned=True), ForeignKey("version.id", ondelete="RESTRICT", onupdate="CASCADE"), nullable=False)
 
     region: Mapped["Region"] = relationship("Region", back_populates="properties")
-    recommendation_entries: Mapped[list["PropertyScore"]] = relationship("PropertyScore", back_populates="property", cascade="all, delete-orphan")
-    infrastructure_distances: Mapped[list["PropertyInfrastructureDistance"]] = relationship("PropertyInfrastructureDistance", back_populates="property", cascade="all, delete-orphan")
+    recommendations: Mapped[list["RecommendationPropertyScore"]] = relationship("RecommendationPropertyScore", back_populates="property", cascade="all, delete-orphan")
+    infrastructure_scores: Mapped[list["PropertyInfrastructureScore"]] = relationship("PropertyInfrastructureScore", back_populates="property", cascade="all, delete-orphan")
+    recommendation_infrastructure_scores: Mapped[list["RecommendationPropertyInfrastructureScore"]] = relationship("RecommendationPropertyInfrastructureScore", back_populates="property", cascade="all, delete-orphan")
     version: Mapped["Version"] = relationship("Version", back_populates="properties")

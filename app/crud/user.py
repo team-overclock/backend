@@ -25,9 +25,13 @@ def create_user(db: Session, user: UserCreateRequest):
         db.refresh(db_user)
     return db_user, created
 
-def get_user_by_id(db: Session, user_id: str):
+def get_user_by_id(db: Session, user_id: int):
     """ID로 사용자 조회, 없으면 None 반환"""
     return db.query(User).filter(User.id == user_id).first()
+
+def get_user_by_cuid(db: Session, user_cuid: str):
+    """CUID로 사용자 조회, 없으면 None 반환"""
+    return db.query(User).filter(User.cuid == user_cuid).first()
 
 def get_user_by_email(db: Session, email: str):
     """이메일로 사용자 조회, 없으면 None 반환"""

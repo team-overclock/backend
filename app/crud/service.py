@@ -38,7 +38,7 @@ def get_recommendation_by_hash_and_user_id(db: Session, recommendation_hash: str
         Recommendation.hash == recommendation_hash,
     ).first()
 
-def get_user_recommendations_by_user_id(db: Session, user_id: str):
+def get_user_recommendations_by_user_id(db: Session, user_id: int):
     """주어진 user_id가 요청한 추천 목록을 반환하는 함수"""
     return db.query(UserRecommendation).join(
         User,

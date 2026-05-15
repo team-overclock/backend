@@ -3,6 +3,7 @@ itsdangerous
 scalar-fastapi
 pytest
 sqlalchemy          
+geoalchemy2
 pymysql             
 argon2-cffi
 python-dotenv  
