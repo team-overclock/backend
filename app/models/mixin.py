@@ -1,3 +1,4 @@
+from decimal import Decimal
 from geoalchemy2.shape import to_shape
 
 
@@ -38,14 +39,16 @@ class CoordinatesMixin:
         return self.coordinates[1]
 
     @coordinates.setter
-    def coordinates(self, value: tuple[float, float]):
+    def coordinates(self, value: tuple[Decimal | float, Decimal | float]):
         """
         입력받은 값을 POINT 문자열로 변환하여 point에 저장
-        - 입력 가능 형식: tuple(longitude, latitude)
+        - 입력 가능 형식: tuple(latitude, longitude)
         """
-        if isinstance(value, tuple) and len(value) == 2 and all(isinstance(coord, float) for coord in value):
-            lon, lat = value
+        try:
+            latitude, longitude = value
+            lat = f"{latitude:.12f}".rstrip("0").rstrip(".")
+            lon = f"{longitude:.12f}".rstrip("0").rstrip(".")
             self.point = f"POINT({lon} {lat})"
             self._cached_shape = None  # 값이 바뀌었으므로 캐시 초기화
-        else:
-            raise ValueError("coordinates 값이 올바르지 않습니다. (longitude, latitude) 형식의 튜플을 입력해야 합니다.")
+        except (ValueError, TypeError):
+            raise ValueError("coordinates 값이 올바르지 않습니다. (latitude, longitude) 형식의 튜플을 입력해야 합니다.")
