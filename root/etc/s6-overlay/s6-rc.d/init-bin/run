@@ -1,14 +1,18 @@
 #!/usr/bin/with-contenv bash
 
 for file in /app/scripts/*; do
-	if [ ! -f "$file" ]; then
+	if [ ! -f "$file" ] || [ ! -x "$file" ]; then
 		continue
 	fi
 	head -n 1 "$file" | grep -q "^#!" || continue
 	target="/usr/local/bin/$(basename "${file%.*}" | tr "_" "-")"
 	cat << EOF > "$target"
 #!/usr/bin/with-contenv bash
-exec s6-setuidgid abc "$file" "\$@"
+if [ "\$UID" -eq 0 ]; then
+	exec s6-setuidgid abc "$file" "\$@"
+else
+	exec "$file" "\$@"
+fi
 EOF
 	chmod +x "$target"
 done

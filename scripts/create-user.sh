@@ -1,5 +1,7 @@
 #!/usr/bin/with-contenv bash
 
+source ./functions.sh
+
 trap "stty echo; exit" INT TERM EXIT
 
 usage() {
@@ -28,10 +30,10 @@ input_password() {
 PASSWORD=$(input_password "Password: ")
 PASSWORD_CONFIRMATION=$(input_password "Password Confirmation: ")
 if [ -z "$PASSWORD" ]; then
-	echo "Password cannot be empty"
+	ERROR "Password cannot be empty"
 	exit 1
 elif [ "$PASSWORD" != "$PASSWORD_CONFIRMATION" ]; then
-	echo "Passwords do not match"
+	ERROR "Passwords do not match"
 	exit 1
 fi
 

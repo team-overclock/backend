@@ -5,7 +5,8 @@ from sqlalchemy.orm import Mapped, relationship
 from sqlalchemy.sql import func
 
 from .base import Base
-
+from .user_recommendation import UserRecommendation
+from .recommendation_infrastructure_type_priority import RecommendationInfrastructureTypePriority
 
 if TYPE_CHECKING:
     from . import (
@@ -13,9 +14,7 @@ if TYPE_CHECKING:
         InfrastructureType,
         Region,
         RecommendationPropertyScore,
-        RecommendationInfrastructureTypePriority,
         RecommendationPropertyInfrastructureScore,
-        UserRecommendation,
         Version,
     )
 
