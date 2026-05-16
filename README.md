@@ -94,6 +94,14 @@ docker exec -it <container_name> drop-tables [-y|--yes]
 연결된 데이터베이스의 모든 테이블 삭제.
 `-y` 또는 `--yes` 입력 시 삭제 여부를 묻지 않고 즉시 삭제함.
 
+### drop-to-seeds
+
+`drop-tables`, `insert-data`, `insert-seeds`를 연속으로 실행하는 스크립트
+
+```shell
+docker exec -it <container_name> drop-to-seeds
+```
+
 ## 테스트
 
 API 서버가 정상 작동하는지 테스트 자동화
