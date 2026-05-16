@@ -29,6 +29,7 @@ from scripts.common import run_with_progress
 
 
 DEFAULT_NUM_RECOMMENDATIONS = 30
+TASK_ID_PREFIX = "random_seed_"
 
 start_ts = int(datetime(2022, 1, 1, 0, 0, 0).timestamp())
 end_ts = int(datetime(2026, 12, 31, 23, 59, 59).timestamp())
@@ -48,8 +49,11 @@ def random_range(min_value: int, max_value: int):
 
 def get_latest_version(db: Session):
     """데이터가 삽입되어 있는지 확인 및 최신 버전 반환"""
-    version = db.query(Version).order_by(Version.registered_at.desc()).first()
-    if version is None:
+    try:
+        version = db.query(Version).order_by(Version.registered_at.desc()).first()
+        if version is None:
+            raise
+    except:
         raise Exception("데이터가 없습니다. 먼저 데이터를 삽입해 주세요.")
     return version
 
@@ -75,11 +79,11 @@ def generate_seed(
     selected_deposit_price = random_range(0, 999999999999) if has_deposit_price else (None, None)
     created_at, finished_at = random_range(start_ts, end_ts)
     created_at = datetime.fromtimestamp(created_at)
-    is_failed = random.choice([True] * 4 + [False])
-    failed_at = (created_at + timedelta(minutes=random.randint(1, 1000))) if is_failed else None
-    finished_at = datetime.fromtimestamp(finished_at) if not is_failed and random.choice([True, False]) else None
+    failed_at = (created_at + timedelta(minutes=random.randint(1, 3))) if random.choice([True] + [False] * 4) else None
+    finished_at = datetime.fromtimestamp(finished_at) if not failed_at and random.choice([True, False]) else None
+    updated_at = finished_at + timedelta(minutes=random.randint(100, 1000)) if finished_at and random.choice([True, [False] * 4]) else None
     rec = Recommendation(
-        hash=f"seed_{suffix}",
+        hash=f"{TASK_ID_PREFIX}{suffix}",
         region=selected_region,
         sale_price_min=selected_sale_price[0],
         sale_price_max=selected_sale_price[1],
@@ -87,7 +91,7 @@ def generate_seed(
         deposit_price_max=selected_deposit_price[1],
         created_at=created_at,
         finished_at=finished_at,
-        updated_at=finished_at,
+        updated_at=updated_at,
         failed_at=failed_at,
         version=version,
     )
@@ -202,7 +206,7 @@ def main(db: Session, num_recommendations: int = DEFAULT_NUM_RECOMMENDATIONS):
         infras = db.query(Infrastructure).all()
         properties = db.query(Property).all()
 
-        last_suffix = db.query(Recommendation).filter(Recommendation.hash.like("seed_%")).count()
+        last_suffix = db.query(Recommendation).filter(Recommendation.hash.like(f"{TASK_ID_PREFIX}%")).count()
         run_with_progress(
             "시드 데이터 삽입 중...",
             num_recommendations,
