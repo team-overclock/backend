@@ -1,12 +1,13 @@
 """추천 엔드포인트 라우트 모듈."""
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, BackgroundTasks, status
 from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..core.validate import verify_region, verify_infrastructure_types
-from ..dependencies import only_self_access, get_current_recommendation
-from ..models import Recommendation
+from ..dependencies import only_self_access, get_current_recommendation, get_current_version
+from ..models import Recommendation, Version
+from ..crud.service import create_recommendation, get_recommendation_by_hash
 from ..models import User
 from ..schemas.error import AppError, RegionOrInfrastructureTypeError
 from ..schemas.common import TaskID, PK_AI
@@ -16,6 +17,7 @@ from ..schemas.service import (
     RecommendationReport,
     RecommendationReportItemDetail,
 )
+from ..services.recommendation import generate_recommendation_task_id, generate_recommendation
 
 
 router = APIRouter(prefix="/recommendations", tags=["recommendations"])
@@ -34,8 +36,10 @@ router = APIRouter(prefix="/recommendations", tags=["recommendations"])
 )
 def request_generate_recommendation(
     body: RecommendationCreateRequest,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     user: User = Depends(only_self_access),
+    version: Version = Depends(get_current_version),
 ) -> RecommendationCreateResponse:
     """
     추천 요청을 받고 백그라운드에서 처리하도록 하는 엔드포인트.
@@ -44,27 +48,46 @@ def request_generate_recommendation(
 
     region = verify_region(db, body.region_id)
     infras = verify_infrastructure_types(db, body.infrastructure_type_ids)
-    if not region or not len(infras) == 0:
-        pass
+    sale_price_min = body.sale_price.min if body.sale_price else None,
+    sale_price_max = body.sale_price.max if body.sale_price else None,
+    deposit_price_min = body.deposit_price.min if body.deposit_price else None,
+    deposit_price_max = body.deposit_price.max if body.deposit_price else None,
 
-    print("################### DEBUG: Create Recommendation Request ###################")
-    print("Received recommendation request:", body)
-    print("region", region.to_dict() if region else None)
-    print("infras", [i.to_dict() for i in infras])
-    print("sale_price", body.sale_price)
-    print("deposit_price", body.deposit_price)
-    print("################### DEBUG END: Create Recommendation Request ###################")
+    status_code = "in_progress"
+    task_id = generate_recommendation_task_id(region.id, [i.id for i in infras], sale_price_min, sale_price_max, deposit_price_min, deposit_price_max)
+    recommendation = get_recommendation_by_hash(db, task_id)
+    if recommendation:
+        if recommendation.finished_at:
+            status_code = "completed"
+        elif recommendation.failed_at:
+            recommendation.failed_at = None
 
-    # 입력받은 조건들을 기반으로 hash(task_id) 생성
-    hash = "unique_hash_value"
-    status = "in_progress"
+    if status_code == "in_progress":
+        if not recommendation:
+            recommendation = create_recommendation(
+                db,
+                task_id=task_id,
+                region=region,
+                sale_price_min=sale_price_min,
+                sale_price_max=sale_price_max,
+                deposit_price_min=deposit_price_min,
+                deposit_price_max=deposit_price_max,
+                version=version,
+                infrastructure_types=infras,
+            )
+        recommendation.add_user(user, body.name)
+        recommendation.version = version
+        db.commit()
 
-    # 추천 로직 백그라운드로 실행
-    # 해당 hash 값이 이미 존재한다면(이미 같은 조건으로 추천한 적이 있다면) 추천 로직을 수행할 필요 없음
+        # 백그라운드에서 비동기로 추천 생성 실행
+        background_tasks.add_task(
+            generate_recommendation,
+            task_id=task_id,
+        )
 
     return {
-        "task_id": hash,
-        "status": status,
+        "task_id": task_id,
+        "status": status_code,
     }
 
 
