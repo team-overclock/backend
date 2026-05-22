@@ -1,22 +1,89 @@
 import re
 from os import linesep
-from typing import Callable, Literal
-from decimal import Decimal
+from pathlib import Path
+from typing import TypeVar, Generator, Callable, Iterable, Literal
 
 
-def progress(msg: str, current: int, total: int, *, is_final: bool | None = None, eol: Literal["\n", "\r\n"] = linesep) -> None:
-    """한 줄을 지우고 진행률을 출력합니다. 마지막이면 개행합니다.
+SEED_TASK_ID_PREFIX = "random_seed_"
+
+
+T = TypeVar("T")
+R = TypeVar("R")
+
+
+def sniff_encoding(path: str) -> str:
+    """
+    파일의 인코딩을 추측하여 반환합니다.
+
+    Args:
+        path (str): 파일 경로
+
+    Returns:
+        str: "utf-8" 또는 "cp949"
+    """
+
+    try:
+        with open(path, encoding="utf-8") as f:
+            f.readline()
+        return "utf-8"
+    except Exception:
+        return "cp949"
+
+
+def get_files(
+    directory_path: str,
+    *,
+    extensions: list[str] | str | None = None,
+    recursive: bool = False
+) -> Generator[str, None, None]:
+    """
+    지정된 디렉토리에서 특정 확장자를 가진 파일들의 경로를 반환합니다.
+
+    Args:
+        directory_path (str): 검색할 디렉토리 경로
+        extensions (list[str] | str | None): 검색할 파일 확장자 목록 (예: [".csv", ".shp"]). None이면 모든 파일을 반환합니다.
+        recursive (bool): 하위 디렉토리까지 검색할지 여부 (기본값: False)
+
+    Returns:
+        Generator[str, None, None]: 지정된 확장자를 가진 파일들의 경로 제너레이터
+    """
+
+    extensions = extensions or [""]
+    if isinstance(extensions, str):
+        extensions = [extensions]
+
+    for ext in extensions:
+        paths = Path(directory_path).rglob(f"*{ext}")
+        for path in paths:
+            if path.is_file():
+                yield str(path)
+            elif path.is_dir() and recursive:
+                yield from get_files(str(path), extensions=extensions, recursive=recursive)
+
+
+def progress(
+    msg: str,
+    current: int,
+    *,
+    total: int | None = None,
+    is_final: bool | None = None,
+    eol: Literal["\n", "\r\n"] = linesep,
+) -> None:
+    """
+    한 줄을 지우고 진행률을 출력합니다. 마지막이면 개행합니다.
 
     - `\\x1b[K`로 커서 위치부터 라인 끝까지 지워 남은 글자 문제를 해결합니다.
     """
 
     is_final = current == total if is_final is None else is_final
     end = eol if is_final else ""
-    print(f"\r  {msg} {current}/{total}\x1b[K", end=end, flush=True)
+    print(f"\r  {msg} {current}{' items' if total is None else f'/{total}'}\x1b[K", end=end, flush=True)
 
 
-def parse_price_to_int(value: str | None) -> int | None:
-    """`90,300` 같은 문자열을 int로 변환합니다."""
+def parse_int(value: str | None) -> int | None:
+    """
+    `90,300` 같은 문자열을 int로 변환합니다.
+    """
 
     if value is None:
         return None
@@ -29,8 +96,10 @@ def parse_price_to_int(value: str | None) -> int | None:
     return int(s)
 
 
-def parse_decimal(value: str | None) -> Decimal | None:
-    """`123.45` 같은 문자열을 Decimal로 변환합니다."""
+def parse_float(value: str | None) -> float | None:
+    """
+    `123.45` 같은 문자열을 float로 변환합니다.
+    """
 
     if value is None:
         return None
@@ -40,30 +109,40 @@ def parse_decimal(value: str | None) -> Decimal | None:
         return None
 
     try:
-        return Decimal(s)
+        return float(s)
     except Exception:
         return None
 
 
 def run_with_progress(
+    items: Iterable[T],
     msg: str,
-    total_count: int,
-    callback: Callable[[int], None],
+    callback: Callable[[int, T], R],
     *,
+    total: int | None = None,
     interval: int = 1,
-    eol: Literal["\n", "\r\n"] = linesep
-):
+    eol: Literal["\n", "\r\n"] = linesep,
+) -> list[R]:
     """
     작업을 수행하면서 진행 상황을 터미널에 출력합니다.
 
-    :param msg: 진행률 옆에 표시될 메시지
-    :param total_count: 총 반복 횟수
-    :param callback: 각 루프에서 실행할 함수 (인자로 현재 인덱스 전달)
+    :param items: 작업할 아이템들의 iterable (예: 리스트, 제너레이터 등)
+    :param msg: 진행률 앞에 표시될 메시지
+    :param callback: 각 루프에서 실행할 함수 (인자로 현재 인덱스 및 아이템 전달)
+    :param total: 총 반복 횟수, items이 시퀀스인 경우 자동 탐지
     :param interval: 진행률을 갱신할 주기 (기본값: 1)
     :param eol: 작업 완료 후 개행 문자
     """
 
-    for step in range(1, total_count + 1):
-        if step % interval == 0 or step == total_count:
-            progress(msg, step, total_count, eol=eol)
-        callback(step - 1)
+    has_len = hasattr(items, "__len__")
+    if has_len and total is None:
+        total = len(items)
+
+    idx = -1
+    results = []
+    for idx, item in enumerate(items):
+        if idx == 0 or idx % interval == 0:
+            progress(msg, idx, total=total)
+        results.append(callback(idx, item))
+    progress(msg, idx + 1, total=total, is_final=True, eol=eol)
+    return results

@@ -8,5 +8,4 @@ pymysql
 argon2-cffi
 python-dotenv  
 cuid2
-admdongkor
 redis

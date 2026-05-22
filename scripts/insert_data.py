@@ -3,43 +3,177 @@
 import re
 import os
 import sys
-import hashlib
-from decimal import Decimal
+import numpy as np
+import pandas as pd
+import geopandas as gpd
+from typing import Generator
 from pathlib import Path
 from typing import Any
+from geopandas import GeoDataFrame
+from collections.abc import Iterable
 from sqlalchemy.orm import Session
+from sqlalchemy.sql import func
+from pyproj import Transformer
 
 # backend 디렉터리를 Python 경로에 추가
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from app.database import SessionLocal, engine
-from app.models import Base, Version, Region, InfrastructureType, Infrastructure, Property
+from app.models import Base, Region, Property, Infrastructure
 
-from scripts.common import parse_price_to_int, parse_decimal, run_with_progress
-from scripts.csv_parser import get_csv_files, read_csv_file
-from scripts.geo import get_address_from_coords
+from scripts.common import parse_int, parse_float, run_with_progress, get_files
+from scripts.csv_parser import read_csv_file
+from scripts.df_parser import read_pandas, read_shp_file
 
 
 PROGRESS_PRINT = 100
 DB_BATCH_SIZE = 1000
 
-INFRA_TYPES = [
-    "고등학교",
-    "공원·녹지",
-    "대형마트",
-    "대형병원",
-    "지하철역",
-    "초등학교",
-]
 
-INFRA_FILE_MAP: dict[str, tuple[str, str]] = {
-    "elementary": ("초등학교", "ASGN_POSBL_ELESCH_NM"),
-    "highschool": ("고등학교", "NGHB_EDU_FCLTY"),
-    "green": ("공원·녹지", "NGHB_PRKGRNLND_SPCE"),
-    "market": ("대형마트", "NGHB_LGZ_DISTB_FCLTY"),
-    "hospital": ("대형병원", "NGHB_LGZ_MLFLT_NM"),
-    "transport": ("지하철역", "NGHB_SUBWAY_STATN"),
+# global variable
+DF: dict[str, pd.DataFrame] = {}
+GDF: dict[str, GeoDataFrame] = {}
+ADDRESS_MAP = {}
+BJD_CODE_MAP = {}
+REGION_NAME_MAP = {}
+REGION_UNIQUE_MAP = {}
+PROPERTY_UNIQUE_MAP = {}
+INFRA_UNIQUE_MAP = {}
+
+
+# *_FIELD_NAME_MAP
+# - key: filename.startswith(key)
+
+PRELOAD_FIELD_NAME_MAP: dict[str, dict[str, Any]] = {
+    "rnaddrkor_": {
+        "priority": -10,
+        "file_extension": ".txt",
+        "parser": None,
+        "category": "rnaddrkor",
+    },
+    "jibun_rnaddrkor_": {
+        "priority": -10,
+        "file_extension": ".txt",
+        "parser": None,
+        "category": "jibun",
+    },
+    "AL_D164_": {
+        "priority": -10,
+        "file_extension": ".shp",
+        "category": "AL_D164",
+    },
 }
+
+REGION_FIELD_NAME_MAP: dict[str, dict[str, Any]] = {
+    "법정동코드 전체": {
+        "file_extension": ".txt",
+        "delimiter": "\t",
+        "category": "동네",
+        "type": "main",
+        "id": "법정동코드",
+        "이름": "법정동명",
+        "상태": "폐지여부",
+    },
+    "서울시 학원 교습소정보": {
+        "priority": 10,
+        "category": "동네",
+        "type": "academy",
+        "id": "학원지정번호",
+        "이름": "학원명",
+        "유형": "학원/교습소",
+        "도로명주소": "도로명주소",
+        "도로명상세주소": "도로명상세주소",
+        "운영상태": "등록상태명",
+    },
+}
+
+PROPERTY_FIELD_NAME_MAP: dict[str, dict[str, Any]] = {
+    "AL_D164_": {
+        "file_extension": ".shp",
+        "category": "건물",
+        "type": "main",
+    },
+    "서울시 공동주택 아파트 정보": {
+        "priority": 10,
+        "category": "건물",
+        "type": "apartment",
+        "id": "k-아파트코드",
+        "이름": "k-아파트명",
+        "위도": "좌표Y",
+        "경도": "좌표X",
+        "도로명주소": "kapt도로명주소",
+        "시도": "주소(시도)k-apt주소split",
+        "시군구": "주소(시군구)",
+        "읍면동": "주소(읍면동)",
+        "나머지주소": "나머지주소",
+        "도로명": "주소(도로명)",
+        "도로상세주소": "주소(도로상세주소)",
+        "동수": "k-전체동수",
+        "세대수": "k-전체세대수",
+        "주차대수": "주차대수",
+    },
+}
+
+INFRA_FIELD_NAME_MAP: dict[str, dict[str, Any]] = {
+    "전국초중등학교위치표준데이터": {
+        "category": "학교",
+        "id": "학교ID",
+        "이름": "학교명",
+        "위도": "위도",
+        "경도": "경도",
+        "지번주소": "소재지지번주소",
+        "도로명주소": "소재지도로명주소",
+        "유형": "학교급구분",
+        "운영상태": "운영상태",
+    },
+    "서울시 역사마스터 정보": {
+        "category": "역사",
+        "type": "main",
+        "id": lambda row: f"01_{row['역사명']}",
+        "이름": lambda row: row['역사명'].rstrip('역'),
+        "위도": "위도",
+        "경도": "경도",
+    },
+    "국토교통부_도시철도 전체노선": {
+        "priority": 10,
+        "category": "역사",
+        "type": "lines",
+        "id": ["권역", "역명"],
+        "이름": lambda row: row['역명'].rstrip('역'),
+        "노선": "노선명",
+    },
+    "서울시 응급실 위치 정보": {
+        "category": "병원",
+        "id": "기관ID",
+        "이름": "기관명",
+        "위도": "병원위도",
+        "경도": "병원경도",
+        "응급의료기관코드명": "응급의료기관코드명",
+    },
+    "생활_대규모점포_서울특별시": {
+        "category": "마트",
+        "id": "관리번호",
+        "이름": "사업장명",
+        "tm_x": "좌표정보(X)",
+        "tm_y": "좌표정보(Y)",
+        "영업상태명": "영업상태명",
+        "업태구분명": "업태구분명",
+        "점포구분명": "점포구분명",
+    },
+    "전국도시공원정보표준데이터": {
+        "category": "공원",
+        "id": "관리번호",
+        "이름": "공원명",
+        "위도": "위도",
+        "경도": "경도",
+        "지번주소": "소재지지번주소",
+        "도로명주소": "소재지도로명주소",
+        "면적": "공원면적",
+    },
+}
+
+
+transformer = Transformer.from_crs("epsg:5179", "epsg:4326", always_xy=True)
 
 
 def usage():
@@ -47,1002 +181,949 @@ def usage():
     print("  - data 폴더 내 *.csv 파일 데이터를 데이터베이스에 삽입합니다.")
 
 
-def normalize_dong_for_region(dong_name: str) -> str:
+def string_rcut_and_rstrip(_value: str, suffix: str) -> tuple[str, bool]:
+    value = _value.strip()
+    if value.endswith(suffix):
+        value = value[:-len(suffix)].strip()
+    return value, _value != value
+
+def all_join_or_none(*args, sep=" "):
+    if all(args):
+        return sep.join(str(arg) for arg in args)
+    return None
+
+
+def get_field_value(row: dict[str, Any], value: Any) -> str | None:
+    if isinstance(value, str):
+        return row.get(value, "").strip() or None
+
+    if isinstance(value, Iterable) and all(isinstance(v, str) for v in value):
+        return "_".join(str(row.get(key, "").strip()) for key in value) or None
+
+    if callable(value):
+        return value(row).strip() or None
+
+
+def get_coords_from_row(row: dict[str, Any], field_mapping: dict[str, Any]) -> tuple[float, float] | None:
     """
-    Region 삽입용 동 이름 정규화
-    - 숫자 및 suffix 제거 (예: 성수동1가 -> 성수동, 상도1동 -> 상도동)
-    """
-
-    return re.sub(r"\d+.*", "동" if re.search(r"\d+동", dong_name) else "", dong_name)
-
-
-def normalize_lotno(lotno: str) -> str:
-    """
-    번지 표기를 정규화합니다.
-    - '번지' 제거
-    - 공백 제거
-    - 각 숫자 블록의 앞 0 제거
-    """
-
-    raw = (lotno or "").strip().replace("번지", "").replace(" ", "")
-    if not raw:
-        return ""
-
-    parts = raw.split("-")
-
-    def _clean_num(p: str) -> str:
-        if p.isdigit():
-            return str(int(p))
-        return p
-
-    return "-".join(_clean_num(p) for p in parts)
-
-
-def normalize_price_range(min_value: int | None, max_value: int | None) -> tuple[int, int] | tuple[None, None]:
-    """가격 범위를 정규화합니다.
-
-    규칙:
-    - min/max 둘 다 None 이면 유지
-    - 둘 중 하나라도 None 이거나 0 이하이면 둘 다 None
-    - 둘 다 양수면 (min, max) 순서 보정
-    """
-
-    if min_value is None and max_value is None:
-        return None, None
-    elif min_value is None:
-        return max_value, max_value
-    elif max_value is None:
-        return min_value, min_value
-
-    sort = sorted([min_value, max_value])
-    return sort[0], sort[1]
-
-
-def generate_files_hash(file_names: list[str]) -> str:
-    """
-    파일명 목록으로 해시를 생성합니다.
+    주어진 행에서 위도와 경도를 추출하여 float 형태로 반환합니다.
 
     Args:
-        file_names (list[str]): 파일명 목록
+        row (dict[str, Any]): CSV 파일의 한 행을 나타내는 딕셔너리
+        field_mapping (dict[str, Any]): 위도와 경도 필드 이름이 매핑된 딕셔너리
 
     Returns:
-        str: SHA-256 해시 문자열
+        tuple[float, float] | None: (위도, 경도) 튜플 또는 좌표 정보를 찾을 수 없는 경우 None
     """
-
-    normalized = ",".join(sorted(file_names))
-    return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
-
-
-def get_or_create_version(db: Session, hash: str):
-    """
-    해시로 Version 존재 여부를 확인하고, 없으면 새로 생성합니다.
-
-    Args:
-        db: DB 세션
-        hash (str): 생성할/조회할 해시 문자열
-
-    Returns:
-        tuple[Version, bool]: (Version 인스턴스, 생성되었으면 True, 기존이면 False)
-    """
-
-    existing = db.query(Version).filter(Version.hash == hash).first()
-    if existing:
-        return existing, False
-
-    v = Version(hash=hash)
-    db.add(v)
-    db.flush()
-    return v, True
-
-
-def insert_infra_types(db: Session) -> None:
-    """
-    인프라 타입을 데이터베이스에 삽입합니다.
-     - 이미 존재하는 타입은 건너뜁니다.
-    """
-
-    print(f"인프라 타입 추가 중...")
-    infras = {}
-    stored_infra_types = [x.name for x in db.query(InfrastructureType).all()]
-    for infra in INFRA_TYPES:
-        if infra not in stored_infra_types:
-            infras[infra] = InfrastructureType(name=infra)
-            db.add(infras[infra])
-    db.flush()
-
-
-def build_infra_type_id_map(db: Session) -> dict[str, int]:
-    return {x.name: x.id for x in db.query(InfrastructureType).all()}
-
-
-def get_or_create_region_depth0(
-    db: Session, version_id: int, sido_name: str
-) -> Region:
-    """
-    depth 0 지역 (시도) 생성/조회 후 버전 업데이트
-    """
-    existing = (
-        db.query(Region)
-        .filter(Region.depth == 0, Region.parent_id == None, Region.name == sido_name)
-        .first()
-    )
-    if existing is None:
-        r = Region(
-            parent_id=None,
-            depth=0,
-            name=sido_name,
-            full_name=sido_name,
-            version_id=version_id,
-        )
-        db.add(r)
-        return r
-    else:
-        existing.version_id = version_id
-        return existing
-
-
-def get_or_create_region_depth1(
-    db: Session, version_id: int, parent_id: int, sigungu_name: str, sido_name: str
-) -> Region:
-    """
-    depth 1 지역 (시군구) 생성/조회 후 버전 업데이트
-    """
-    existing = (
-        db.query(Region)
-        .filter(Region.depth == 1, Region.parent_id == parent_id, Region.name == sigungu_name)
-        .first()
-    )
-    if existing is None:
-        full_name = f"{sido_name} {sigungu_name}"
-        r = Region(
-            parent_id=parent_id,
-            depth=1,
-            name=sigungu_name,
-            full_name=full_name,
-            version_id=version_id,
-        )
-        db.add(r)
-        return r
-    else:
-        existing.version_id = version_id
-        return existing
-
-
-def get_or_create_region_depth2(
-    db: Session,
-    version_id: int,
-    parent_id: int,
-    emd_normalized: str,
-    sido_name: str,
-    sigungu_name: str,
-) -> Region:
-    """
-    depth 2 지역 (읍면동) 생성/조회 후 버전 업데이트
-    """
-    existing = (
-        db.query(Region)
-        .filter(Region.depth == 2, Region.parent_id == parent_id, Region.name == emd_normalized)
-        .first()
-    )
-    if existing is None:
-        full_name = f"{sido_name} {sigungu_name} {emd_normalized}"
-        r = Region(
-            parent_id=parent_id,
-            depth=2,
-            name=emd_normalized,
-            full_name=full_name,
-            version_id=version_id,
-        )
-        db.add(r)
-        return r
-    else:
-        existing.version_id = version_id
-        return existing
-
-
-def get_or_create_region(
-    db: Session,
-    version_id: int,
-    sido_name: str,
-    sigungu_name: str,
-    emd_name: str,
-) -> Region | None:
-    """
-    서울 데이터 기준으로 3단계 Region을 보장합니다.
-    - depth 0: 시도
-    - depth 1: 시군구
-    - depth 2: 읍면동 (N가 등 제거)
-    
-    기존 데이터가 있으면 버전만 업데이트합니다.
-    """
-
-    if sido_name != "서울특별시":
+    lat = None
+    lng = None
+    try:
+        lat = parse_float(row[field_mapping["위도"]])
+        lng = parse_float(row[field_mapping["경도"]])
+        if lat is None or lng is None: raise
+    except:
+        try:
+            tm_x = parse_float(row[field_mapping["tm_x"]])
+            tm_y = parse_float(row[field_mapping["tm_y"]])
+            lng, lat = transformer.transform(tm_x, tm_y)
+        except:
+            pass
+    if lat is None or lng is None:
         return None
+    return lat, lng
 
-    dong_for_region = normalize_dong_for_region(emd_name)
-    r0 = get_or_create_region_depth0(db, version_id, sido_name)
-    r1 = get_or_create_region_depth1(db, version_id, r0.id, sigungu_name, sido_name)
-    r2 = get_or_create_region_depth2(
-        db, version_id, r1.id, dong_for_region, sido_name, sigungu_name
+
+def normalize_sido(sido: str) -> str:
+    sido = re.sub(r"^서울(시|특별시)?($|\s+)", "서울특별시 ", sido).strip()
+    return sido
+
+
+def get_next_region_name(region_name: str) -> Generator[str, None, None]:
+    maybe_gu = region_name.split()
+    maybe_gu = maybe_gu[1] if len(maybe_gu) > 1 else None
+
+    region_name = region_name.strip()
+    yield region_name
+
+    check1 = re.sub(r"[\d -]+$", "", region_name)
+    yield check1
+
+    check2 = re.sub(r"[\d·]+", "", check1)
+    yield check2
+
+    check3 = "상일동" if maybe_gu == "강동구" and check2 == "상동" else None
+    if check3: yield check3
+
+
+def nomalize_apartment_address(name: str, address: str) -> str:
+    strip = string_rcut_and_rstrip
+    name, _ = strip(name, "아파트")
+    address, _ = strip(address, "관리소")
+    address, _ = strip(address, "관리사무소")
+    address, _ = strip(address, "아파트")
+    address, _ = strip(address, "번지")
+    address, _ = strip(address, name)
+    return address
+
+
+def clean_series_field(series, fill_val=""):
+    return series.fillna(fill_val).astype(str).str.strip()
+
+def empty_series_to_nan(series):
+    return series.astype(str).str.strip().replace("", np.nan)
+
+
+def parse_address_data(_df: pd.DataFrame) -> pd.DataFrame:
+    print()
+    print(f"  - ✅ 원본 데이터 로드 완료 (총 {len(_df)}개 행)")
+    print(f"  - ⏳ 1. 데이터 제거 및 정형화 작업 중...")
+
+    # 필수 데이터 결측치 제거 및 정형화
+
+    df = _df.dropna(subset=["법정동코드"])
+
+    tmp_df = df[[
+        "도로명주소관리번호",
+        "법정동코드",
+        "시도명",
+        "시군구명",
+        "법정읍면동명",
+        "법정리명",
+        "산여부",
+        "지번본번",
+        "지번부번",
+        "도로명코드",
+        "도로명", 
+        "건물본번",
+        "건물부번",
+    ]].copy().apply(clean_series_field)
+
+    tmp_df["법정읍면동명"] = tmp_df["법정읍면동명"].fillna("")
+    tmp_df["법정리명"] = tmp_df["법정리명"].fillna("")
+    tmp_df["산여부"] = tmp_df["산여부"].fillna("0")
+    tmp_df["지번본번"] = tmp_df["지번본번"].fillna("0")
+    tmp_df["지번부번"] = tmp_df["지번부번"].fillna("0")
+    tmp_df["지번본번"] = tmp_df["지번본번"].str.zfill(4)
+    tmp_df["지번부번"] = tmp_df["지번부번"].str.zfill(4)
+
+    # 산여부 0과 1을 각각 1(일반 대지), 2(산)로 변환
+    tmp_df["산여부"] = np.where(tmp_df["산여부"] == "0", "1", "2")
+
+    # 시군구코드, 읍면동코드, 도로명번호 추출
+    tmp_df["시군구코드"] = tmp_df["도로명코드"].str[:5]
+    tmp_df["읍면동코드"] = tmp_df["도로명주소관리번호"].str[5:8]
+    tmp_df["도로명번호"] = tmp_df["도로명코드"].str[5:]
+
+    print(f"  - ⏳ 2. pnu_code 컬럼 결합 연산 및 지번/도로명 주소 매핑 중...")
+    tmp_df["pnu_code"] = tmp_df["법정동코드"] + tmp_df["산여부"] + tmp_df["지번본번"] + tmp_df["지번부번"]
+
+    tmp_df["지번주소"] = (
+        tmp_df["시도명"] + " " +
+        tmp_df["시군구명"] + " " +
+        tmp_df["법정읍면동명"] + " " +
+        tmp_df["법정리명"] + " " +
+        (
+            tmp_df["지번본번"].str.lstrip("0") +
+            "-" +
+            tmp_df["지번부번"].str.lstrip("0")
+        ).str.strip(" -")
+    ).str.replace(r"\s+", " ", regex=True).str.strip()
+
+    tmp_df["도로명주소"] = (
+        tmp_df["시도명"] + " " +
+        tmp_df["시군구명"] + " " +
+        tmp_df["도로명"] + " " +
+        (
+            tmp_df["건물본번"].str.lstrip("0") +
+            "-" +
+            tmp_df["건물부번"].str.lstrip("0")
+        ).str.strip(" -")
     )
-    return r2
 
+    print(f"  - ✅ 최종 데이터 개수: {len(tmp_df)}개")
+    print(f"  - ✅ 제거된 데이터 개수: {len(df) - len(tmp_df)}")
 
-def parse_sgg_field(value: str) -> tuple[str, str, str] | None:
-    """'서울특별시 강남구 도곡동' -> (시도, 시군구, 동)"""
+    res = df.copy()
+    res["pnu_code"] = tmp_df["pnu_code"]
+    res["시군구코드"] = tmp_df["시군구코드"]
+    res["읍면동코드"] = tmp_df["읍면동코드"]
+    res["도로명번호"] = tmp_df["도로명번호"]
+    res["도로명주소"] = tmp_df["도로명주소"]
+    res["지번주소"] = tmp_df["지번주소"]
+    return res
 
-    parts = (value or "").strip().split()
-    if len(parts) < 3:
-        return None
-    sido = parts[0]
-    sigungu = parts[1]
-    emd = " ".join(parts[2:]).strip()
-    return sido, sigungu, emd
+def parse_rnaddrkor(filepath: str, *_):
+    rdf = read_pandas(
+        filepath,
+        names=[
+            "도로명주소관리번호",
+            "법정동코드",
+            "시도명",
+            "시군구명",
+            "법정읍면동명",
+            "법정리명",
+            "산여부",
+            "지번본번",
+            "지번부번",
+            "도로명코드",
+            "도로명",
+            "지하여부",
+            "건물본번",
+            "건물부번",
+            "행정동코드",
+            "행정동명",
+            "기초구역번호",
+            "이전도로명주소",
+            "효력발생일",
+            "공동주택구분",
+            "이동사유코드",
+            "건축물대장건물명",
+            "시군구용건물명",
+            "비고",
+        ],
+    )
 
+    rdf = parse_address_data(rdf)
+    print(f"  - ⏳ 주소 변환을 위한 사전 매핑 중...")
+    ADDRESS_MAP["rncode_to_rn"] = dict(zip(rdf["도로명코드"], rdf["도로명"]))
+    DF["rnaddrkor"] = rdf
 
-def parse_lnno_adres(value: str) -> tuple[str, str, str, str] | None:
-    """
-    '서울특별시 종로구 당주동 100' 같은 `LNNO_ADRES`에서
-    (sido, sigungu, emd_raw, lotno) 를 반환합니다.
-    """
-    if not value:
-        return None
-    parsed = parse_sgg_field(value)
-    if parsed is None:
-        return None
-    sido, sigungu, emd_raw = parsed
-    # emd_raw may contain the lotno at the end, e.g. '당주동 100' or '숭인동 204-11'
-    parts = emd_raw.split()
-    if len(parts) >= 2 and re.search(r"\d", parts[-1]):
-        lotno = normalize_lotno(parts[-1])
-        emd = " ".join(parts[:-1])
-    else:
-        lotno = ""
-        emd = emd_raw
-    return sido, sigungu, emd, lotno
+def parse_jibun_rnaddrkor(filepath: str, *_):
+    jdf = read_pandas(
+        filepath,
+        names=[
+            "도로명주소관리번호",
+            "법정동코드",
+            "시도명",
+            "시군구명",
+            "법정읍면동명",
+            "법정리명",
+            "산여부",
+            "지번본번",
+            "지번부번",
+            "도로명코드",
+            "지하여부",
+            "건물본번",
+            "건물부번",
+            "이동사유코드",
+        ],
+    )
 
+    jdf["도로명"] = jdf["도로명코드"].map(ADDRESS_MAP["rncode_to_rn"])
+    jdf = parse_address_data(jdf)
+    DF["jibun"] = jdf
 
-def collect_address_area_range_from_transact(csv_files: list[str]) -> dict[tuple[str, str, str, str], tuple[Decimal, Decimal]]:
-    """
-    단지별직거래가격*.csv에서 주소별(시도,시군구,동,번지) 평수(min,max)를 수집합니다.
-    SMOEU 컬럼(㎡)를 평으로 변환합니다.
-    반환: {(sido,sigungu,emd,lotno): (min_pyeong, max_pyeong)} (Decimal)
-    """
-    result: dict[tuple[str, str, str, str], tuple[Decimal, Decimal]] = {}
-    print("단지별 직거래 평수 집계 중...")
-    for csv_file in csv_files:
-        name = Path(csv_file).name
-        if "단지별직거래가격" not in name:
-            continue
-        rows = read_csv_file(csv_file)
-        total = len(rows)
-        def run(idx: int):
-            row = rows[idx]
-            sido = row.get("SIDO_NM")
-            sigungu = row.get("SIGNGU_NM")
-            emd = row.get("EMD_NM")
-            lotno = row.get("LTNO_NM")
-            if not (sido and sigungu and emd and lotno):
-                return
-            lotno = normalize_lotno(lotno)
-            if sido != "서울특별시" or not lotno:
-                return
-            area_m2 = parse_decimal(row.get("SMOEU"))
-            if area_m2 is None or area_m2 <= 0:
-                return
-            pyeong = area_m2 / Decimal("3.305785")
-            key = (sido, sigungu, emd, lotno)
-            if key not in result:
-                result[key] = (pyeong, pyeong)
-            else:
-                cur_min, cur_max = result[key]
-                if pyeong < cur_min:
-                    cur_min = pyeong
-                if pyeong > cur_max:
-                    cur_max = pyeong
-                result[key] = (cur_min, cur_max)
-        run_with_progress(f"[{name}]", total, run, interval=PROGRESS_PRINT)
+def parse_AL_D164_shp(filepath: str, *_):
+    gdf = read_shp_file(
+        filepath,
+        columns=[
+            "GIS건물통합식별번호",
+            "고유번호",
+            "법정동코드",
+            "법정동명",
+            "특수지구분코드",
+            "특수지구분명",
+            "지번",
+            "건물식별번호",
+            "집합건물구분코드",
+            "집합건물구분",
+            "대장종류코드",
+            "대장종류",
+            "건물명",
+            "상위건물식별번호",
+            "도로명주소코드",
+            "도로명주소읍면동리코드",
+            "도로명주소지하코드",
+            "도로명주소본번",
+            "도로명주소부번",
+            "건물동명",
+            "건물주부구분코드",
+            "건물주부구분",
+            "건물대지면적(㎡)",
+            "건물건축면적(㎡)",
+            "건물연면적(㎡)",
+            "용적율(%)",
+            "건폐율(%)",
+            "건축물구조코드",
+            "건축물구조명",
+            "건축물용도코드",
+            "건축물용도명",
+            "건물높이",
+            "지상층수",
+            "지하층수",
+            "허가일자",
+            "사용승인일자",
+            "총주차수",
+            "총주차장면적(㎡)",
+            "데이터기준일자",
+            "시군구코드",
+            "geometry",
+        ],
+    )
 
-    return result
+    jdf = DF["jibun"]
+    rdf = DF["rnaddrkor"]
+    print()
+    print(f"  - ✅ 원본  데이터 로드 완료 (총 {len(gdf)}개 행)")
 
+    # ==========================================
+    # 1. 사람이 살 수 있는 주거용 건물 추출
+    # ==========================================
+    print("  - ⏳ 1. 주거용 건물(단독/공동주택 등) 필터링 중...")
 
-def collect_address_price_per_pyeong_from_complex(csv_files: list[str]) -> dict[tuple[str, str, str, str], tuple[Decimal, Decimal]]:
-    """
-    단지별전세가격*.csv에서 주소별(시도,시군구,동,번지) 평당 전세가격(PCPP) min/max를 수집합니다.
-    PCPP은 파일에 제공된 수치를 그대로 Decimal로 읽습니다.
-    반환: {(sido,sigungu,emd,lotno): (min_pcpp, max_pcpp)} (Decimal)
-    """
-    result: dict[tuple[str, str, str, str], tuple[Decimal, Decimal]] = {}
-    print("단지별 전세 평단가 집계 중...")
-    for csv_file in csv_files:
-        name = Path(csv_file).name
-        if "단지별전세가격" not in name:
-            continue
-        rows = read_csv_file(csv_file)
-        total = len(rows)
-        def run(idx: int):
-            row = rows[idx]
-            addr = (row.get("LNNO_ADRES") or "").strip()
-            parsed = parse_lnno_adres(addr)
-            if parsed is None:
-                return
-            sido, sigungu, emd, lotno = parsed
-            if sido != "서울특별시" or not lotno:
-                return
-            pcpp = parse_decimal(row.get("PCPP"))
-            if pcpp is None or pcpp <= 0:
-                return
-            key = (sido, sigungu, emd, lotno)
-            if key not in result:
-                result[key] = (pcpp, pcpp)
-            else:
-                cur_min, cur_max = result[key]
-                if pcpp < cur_min:
-                    cur_min = pcpp
-                if pcpp > cur_max:
-                    cur_max = pcpp
-                result[key] = (cur_min, cur_max)
-        run_with_progress(f"[{name}]", total, run, interval=PROGRESS_PRINT)
+    gdf["건축물용도코드"] = clean_series_field(gdf["건축물용도코드"])
+    residential_mask = (
+        gdf["건축물용도코드"].str.startswith("01") | 
+        gdf["건축물용도코드"].str.startswith("02") |
+        gdf["건축물용도명"].str.contains("주택|아파트|빌라|오피스텔", na=False)
+    )
+    merged_df = gdf[residential_mask].copy()
 
-    return result
+    # ==========================================================
+    # 2. 주소 매핑
+    # ==========================================================
+    print(f"  - ⏳ 2. 주소 매핑용 룩업 사전 빌드 중...")
 
+    # 0) 주소 매핑용 사전 빌드: 관리번호와 PNU 기준으로 각각 도로명주소/지번주소 매핑할 수 있는 사전 조립
+    jdf_by_mgmt = jdf.drop_duplicates(subset=["도로명주소관리번호"])
+    rdf_by_mgmt = rdf.drop_duplicates(subset=["도로명주소관리번호"])
 
-def merge_address_estimates_to_properties(
-    property_data: dict[tuple[str, str, str, str, str], dict[str, Any]],
-    area_map: dict[tuple[str, str, str, str], tuple[Decimal, Decimal]],
-    price_map: dict[tuple[str, str, str, str], tuple[Decimal, Decimal]],
-) -> int:
-    """
-    주소별 평수(min,max)과 평단가(min,max)를 이용해 전세금(min,max, 원)을 계산하여
-    `property_data`의 deposit_min/deposit_max(원 단위)에 병합합니다.
-    계산 방식: deposit_min = pcpp_min * pyeong_min, deposit_max = pcpp_max * pyeong_max
-    반환: 병합된 갯수
-    """
-    count = {
-        "updated": 0,
+    jdf_by_pnu = jdf.drop_duplicates(subset=["pnu_code"])
+    rdf_by_pnu = rdf.drop_duplicates(subset=["pnu_code"])
+
+    # 1) rnnum_to_rnaddr : 관리번호 -> 도로명주소 및 역매핑
+    ADDRESS_MAP.setdefault("rnnum_to_rnaddr", {})
+    ADDRESS_MAP.setdefault("rnaddr_to_rnnum", {})
+    for zips in [
+        zip(rdf_by_mgmt["도로명주소"], rdf_by_mgmt["도로명주소관리번호"]),
+        zip(jdf_by_mgmt["도로명주소"], jdf_by_mgmt["도로명주소관리번호"]),
+    ]:
+        for addr, num in zips:
+            ADDRESS_MAP["rnnum_to_rnaddr"].setdefault(num, addr)
+            ADDRESS_MAP["rnaddr_to_rnnum"].setdefault(addr.replace(" ", ""), []).append(num)
+
+    # 2) rnnum_to_jibun : 관리번호 -> 지번주소 및 역매핑
+    ADDRESS_MAP.setdefault("rnnum_to_jibun", {})
+    ADDRESS_MAP.setdefault("jibun_to_rnnum", {})
+    for zips in [
+        zip(jdf_by_pnu["지번주소"], jdf_by_pnu["도로명주소관리번호"]),
+        zip(rdf_by_pnu["지번주소"], rdf_by_pnu["도로명주소관리번호"]),
+    ]:
+        for addr, num in zips:
+            ADDRESS_MAP["rnnum_to_jibun"].setdefault(num, addr)
+            ADDRESS_MAP["jibun_to_rnnum"].setdefault(addr.replace(" ", ""), []).append(num)
+
+    # 3) pnu_to_rnaddr : PNU -> 도로명주소 및 역매핑
+    ADDRESS_MAP.setdefault("pnu_to_rnaddr", {})
+    ADDRESS_MAP.setdefault("rnaddr_to_pnu", {})
+    for zips in [
+        zip(rdf_by_mgmt["도로명주소"], rdf_by_mgmt["pnu_code"]),
+        zip(jdf_by_mgmt["도로명주소"], jdf_by_mgmt["pnu_code"]),
+    ]:
+        for addr, pnu in zips:
+            ADDRESS_MAP["pnu_to_rnaddr"].setdefault(pnu, addr)
+            ADDRESS_MAP["rnaddr_to_pnu"].setdefault(addr.replace(" ", ""), []).append(pnu)
+
+    # 4) pnu_to_jibun : PNU -> 지번주소 및 역매핑
+    ADDRESS_MAP.setdefault("pnu_to_jibun", {})
+    ADDRESS_MAP.setdefault("jibun_to_pnu", {})
+    for zips in [
+        zip(jdf_by_pnu["지번주소"], jdf_by_pnu["pnu_code"]),
+        zip(rdf_by_pnu["지번주소"], rdf_by_pnu["pnu_code"]),
+    ]:
+        for addr, pnu in zips:
+            ADDRESS_MAP["pnu_to_jibun"].setdefault(pnu, addr)
+            ADDRESS_MAP["jibun_to_pnu"].setdefault(addr.replace(" ", ""), []).append(pnu)
+
+    print("✨ [SUCCESS] 데이터 우선순위 역전 사전(ADDRESS_MAP) 빌드 완료!")
+
+    # ==========================================
+    # 3. 도로명주소관리번호 추출 및 주소 매핑용 컬럼 조립
+    # ==========================================
+    print("  - ⏳ 3. 도로명주소관리번호 추출 및 주소 매핑용 컬럼 조립 중...")
+
+    tmp_df = merged_df[["고유번호", "도로명주소코드", "도로명주소읍면동리코드", "도로명주소지하코드", "도로명주소본번", "도로명주소부번"]].copy()
+    tmp_df = tmp_df.dropna(subset=["도로명주소코드", "도로명주소읍면동리코드"], how="all")
+
+    tmp_df["도로명주소코드"] = clean_series_field(tmp_df["도로명주소코드"])
+    tmp_df["도로명주소읍면동리코드"] = clean_series_field(tmp_df["도로명주소읍면동리코드"])
+    tmp_df["도로명주소지하코드"] = clean_series_field(tmp_df["도로명주소지하코드"], "0")
+    tmp_df["도로명주소본번"] = clean_series_field(tmp_df["도로명주소본번"], "0")
+    tmp_df["도로명주소부번"] = clean_series_field(tmp_df["도로명주소부번"], "0")
+
+    tmp_df["시군구코드"] = tmp_df["도로명주소코드"].str[:5]
+    tmp_df["읍면동코드"] = tmp_df["도로명주소읍면동리코드"].str[:3]
+    tmp_df["읍면동일련번호"] = tmp_df["도로명주소읍면동리코드"].str[3:]
+    tmp_df["도로명번호"] = tmp_df["도로명주소코드"].str[5:]
+    tmp_df["도로명주소본번"] = tmp_df["도로명주소본번"].str.zfill(5)
+    tmp_df["도로명주소부번"] = tmp_df["도로명주소부번"].str.zfill(5)
+
+    tmp_df["도로명주소관리번호"] = tmp_df["시군구코드"] + tmp_df["읍면동코드"] + tmp_df["도로명번호"] + tmp_df["도로명주소지하코드"] + tmp_df["도로명주소본번"] + tmp_df["도로명주소부번"]
+
+    # Left Join
+    tmp_subset = tmp_df[["시군구코드", "읍면동코드", "읍면동일련번호", "도로명번호", "도로명주소관리번호"]]
+    merged_df = merged_df.merge(tmp_subset, left_index=True, right_index=True, how="left")
+
+    # ==========================================
+    # 4. 국토부 GDF에 대장 주소 1차 수혈 (map 연산)
+    # ==========================================
+    print("  - ⏳ 4. 국토부 GDF에 대장 주소 매핑 중...")
+    merged_df["도로명주소"] = merged_df["도로명주소관리번호"].map(ADDRESS_MAP["rnnum_to_rnaddr"]).fillna(merged_df["고유번호"].map(ADDRESS_MAP["pnu_to_rnaddr"]))
+    merged_df["지번주소"] = merged_df["고유번호"].map(ADDRESS_MAP["pnu_to_jibun"]).fillna(merged_df["도로명주소관리번호"].map(ADDRESS_MAP["rnnum_to_jibun"]))
+
+    # ==========================================
+    # 5. 대장 미매칭 구역 대상 GDF 내장 정보 결합
+    # ==========================================
+    print("  - ⏳ 5. 대장 미매칭 유령 필지 대상 국토부 내장 정보 결합 및 예외 처리...")
+
+    # 1) 지번주소 Fallback: 대장 주소가 끝까지 없으면 [법정동명 + 지번] 조합으로 강제 메꿈
+    fallback_jibun = (merged_df["법정동명"] + " " + merged_df["지번"]).str.strip()
+    merged_df["지번주소"] = np.where(
+        merged_df["지번주소"].isna() | (merged_df["지번주소"] == "") | (merged_df["지번주소"] == "nan"),
+        fallback_jibun,
+        merged_df["지번주소"]
+    )
+
+    # 2) 도로명주소 Fallback: 대장 주소가 없으면 차선책으로 내장 건물명이라도 보존 (없으면 None)
+    merged_df["도로명주소"] = np.where(
+        merged_df["도로명주소"].isna() | (merged_df["도로명주소"] == "") | (merged_df["도로명주소"] == "nan"),
+        np.where(merged_df["건물명"] != "", merged_df["건물명"], None),
+        merged_df["도로명주소"]
+    )
+
+    # ==========================================
+    # 6. 주소 분리 조립 및 필수/Nullable 데이터 최종 추출
+    # ==========================================
+    print("  - ⏳ 6. 주소 분리 조립 및 필수/Nullable 데이터 최종 추출 중...")
+
+    # 추후 region 관계설정 및 좌표를 point로 변환해야 함
+    renames = {
+        "고유번호": "source_id",
+        "건축물용도명": "type",
+        "건물명": "name",
+        "지번주소": "land_lot_address",
+        "도로명주소": "road_name_address",
+        "법정동코드": "bjd_code",
     }
-    items = list(property_data.items())
-    total = len(property_data)
-    def run(idx: int):
-        (sido, sigungu, emd_raw, lotno, _), item = items[idx]
-        key = (sido, sigungu, emd_raw, lotno)
-        area = area_map.get(key)
-        price = price_map.get(key)
-        if not area or not price:
-            return
+    res_df = merged_df[list(renames.keys())].rename(columns=renames)
 
-        area_min, area_max = area
-        pcpp_min, pcpp_max = price
+    centroid_4326 = gpd.GeoSeries(merged_df.geometry.centroid, crs=merged_df.crs).to_crs(epsg=4326)
+    res_df["lon"] = centroid_4326.x
+    res_df["lat"] = centroid_4326.y
 
-        # pcpp는 (파일 기준) 평당 가격(원/평)로 간주
-        total_min_won = (pcpp_min * area_min).quantize(0) if isinstance(pcpp_min, Decimal) else Decimal(0)
-        total_max_won = (pcpp_max * area_max).quantize(0) if isinstance(pcpp_max, Decimal) else Decimal(0)
-
-        if total_min_won <= 0 or total_max_won <= 0:
-            return
-
-        # property_data의 deposit는 원 단위(현재 코드에서 원 단위로 저장)
-        comp_min = int(total_min_won)
-        comp_max = int(total_max_won)
-
-        if item.get("deposit_min") is None:
-            item["deposit_min"] = comp_min
-        else:
-            item["deposit_min"] = min(item["deposit_min"], comp_min)
-
-        if item.get("deposit_max") is None:
-            item["deposit_max"] = comp_max
-        else:
-            item["deposit_max"] = max(item["deposit_max"], comp_max)
-
-        count["updated"] += 1
-    run_with_progress("주소병합", total, run, interval=PROGRESS_PRINT)
-
-    return count["updated"]
-
-
-def get_or_create_infrastructure(
-    db: Session,
-    type_id: int,
-    region_id: int,
-    name: str,
-    latitude: Decimal,
-    longitude: Decimal,
-    version_id: int,
-) -> tuple[Infrastructure, bool]:
-    """
-    (type_id, name, latitude, longitude)으로 기존 인프라 조회.
-    - 없으면: 새로 생성 후 반환 (True)
-    - 있으면: 버전만 업데이트 후 반환 (False)
-    """
-
-    existing = (
-        db.query(Infrastructure)
-        .filter(
-            Infrastructure.type_id == type_id,
-            Infrastructure.region_id == region_id,
-            Infrastructure.name == name,
-        )
-        .first()
-    )
-
-    if existing is None:
-        infra = Infrastructure(
-            type_id=type_id,
-            region_id=region_id,
-            name=name,
-            coordinates=(latitude, longitude),
-            version_id=version_id,
-        )
-        db.add(infra)
-        return infra, True
-    else:
-        existing.version_id = version_id
-        return existing, False
-
-
-def get_or_create_property(
-    db: Session,
-    version_id: int,
-    region_id: int,
-    name: str,
-    land_lot_address: str,
-    latitude: Decimal,
-    longitude: Decimal,
-    road_name_address: str | None = None,
-    sale_price_min: int | None = None,
-    sale_price_max: int | None = None,
-    deposit_price_min: int | None = None,
-    deposit_price_max: int | None = None,
-) -> tuple[Property, bool]:
-    """
-    (region_id, land_lot_address, name)으로 기존 부동산 조회.
-    - 없으면: 새로 생성 후 반환 (True)
-    - 있으면: 가격 정보와 버전 업데이트 후 반환 (False)
-    """
-
-    sale_price_min, sale_price_max = normalize_price_range(sale_price_min, sale_price_max)
-    deposit_price_min, deposit_price_max = normalize_price_range(deposit_price_min, deposit_price_max)
-
-    existing = (
-        db.query(Property)
-        .filter(
-            Property.region_id == region_id,
-            Property.land_lot_address == land_lot_address,
-            Property.name == name,
-        )
-        .first()
-    )
-
-    if existing is None:
-        prop = Property(
-            region_id=region_id,
-            name=name,
-            land_lot_address=land_lot_address,
-            road_name_address=road_name_address,
-            sale_price_min=sale_price_min,
-            sale_price_max=sale_price_max,
-            deposit_price_min=deposit_price_min,
-            deposit_price_max=deposit_price_max,
-            coordinates=(latitude, longitude),
-            version_id=version_id,
-        )
-        db.add(prop)
-        return prop, True
-    else:
-        # 기존값 정합성 보정 (이전 배치로 들어간 0/편측 값 정리)
-        existing.sale_price_min, existing.sale_price_max = normalize_price_range(
-            existing.sale_price_min, existing.sale_price_max
-        )
-        existing.deposit_price_min, existing.deposit_price_max = normalize_price_range(
-            existing.deposit_price_min, existing.deposit_price_max
-        )
-
-        # 기존 데이터 업데이트 (가격 정보 병합)
-        if sale_price_min is not None:
-            existing.sale_price_min = (
-                sale_price_min
-                if existing.sale_price_min is None
-                else min(existing.sale_price_min, sale_price_min)
-            )
-        if sale_price_max is not None:
-            existing.sale_price_max = (
-                sale_price_max
-                if existing.sale_price_max is None
-                else max(existing.sale_price_max, sale_price_max)
-            )
-        if deposit_price_min is not None:
-            existing.deposit_price_min = (
-                deposit_price_min
-                if existing.deposit_price_min is None
-                else min(existing.deposit_price_min, deposit_price_min)
-            )
-        if deposit_price_max is not None:
-            existing.deposit_price_max = (
-                deposit_price_max
-                if existing.deposit_price_max is None
-                else max(existing.deposit_price_max, deposit_price_max)
-            )
-
-        # 병합 후에도 정합성 보장
-        existing.sale_price_min, existing.sale_price_max = normalize_price_range(
-            existing.sale_price_min, existing.sale_price_max
-        )
-        existing.deposit_price_min, existing.deposit_price_max = normalize_price_range(
-            existing.deposit_price_min, existing.deposit_price_max
-        )
-
-        if road_name_address and not existing.road_name_address:
-            existing.road_name_address = road_name_address
-        existing.version_id = version_id
-        return existing, False
-
-
-def build_coordinate_map_from_infra(csv_files: list[str]) -> dict[tuple[str, str, str, str], tuple[Decimal, Decimal]]:
-    """
-    인프라 CSV들에서 좌표 맵 생성.
-    정규화된 동명 + 번지로 키 생성 (매칭 선제 정규화).
-    key: (시도, 시군구, 정규화된_동명, 정규화된_번지)
-    """
-
-    coord_map: dict[tuple[str, str, str, str], tuple[Decimal, Decimal]] = {}
-
-    print("인프라 좌표 맵 생성 중...")
-    for csv_file in csv_files:
-        lower_name = Path(csv_file).name.lower()
-        if not any(key in lower_name for key in INFRA_FILE_MAP.keys()):
-            continue
-
-        rows = read_csv_file(csv_file)
-        total = len(rows)
-        def run(idx: int):
-            row = rows[idx]
-            sido = (row.get("SIDO_NM") or "").strip()
-            if sido != "서울특별시":
-                return
-
-            sigungu = (row.get("SIGNGU_NM") or "").strip()
-            emd_raw = (row.get("EMD_NM") or "").strip()
-            emd_normalized = normalize_dong_for_region(emd_raw)  # 동명 정규화
-            lotno = normalize_lotno(row.get("LTNO_NM") or "")  # 번지 정규화
-            lat = parse_decimal(row.get("LTNO_LA"))
-            lon = parse_decimal(row.get("LTNO_LO"))
-            if not (sigungu and emd_normalized and lotno and lat is not None and lon is not None):
-                return
-
-            # 정규화된 키로 맵 생성 (중복 시 덮어쓰기)
-            key = (sido, sigungu, emd_normalized, lotno)
-            coord_map[key] = (lat, lon)
-        run_with_progress(f"[{Path(csv_file).name}]", total, run, interval=PROGRESS_PRINT)
-
-    return coord_map
-
-
-def batch_geocode_coordinates(coords_set: set[tuple[Decimal, Decimal]]) -> dict[tuple[Decimal, Decimal], tuple[str, str, str] | None]:
-    """
-    좌표 세트를 배치로 역지오코딩합니다.
-    중복 제거된 좌표들을 한 번에 처리하여 성능을 개선합니다.
-    
-    Returns:
-        (lat, lon) -> (sido, sigungu, emd) 또는 None
-    """
-    geo_cache: dict[tuple[Decimal, Decimal], tuple[str, str, str] | None] = {}
-    print(f"배치 역지오코딩 중...")
-
-    items = list(coords_set)
-    total = len(coords_set)
-    def run(idx: int):
-        (lat, lon) = items[idx]
-        result = get_address_from_coords(lat, lon)
-        geo_cache[(lat, lon)] = result
-    run_with_progress("역지오코딩", total, run, interval=PROGRESS_PRINT)
-    
-    return geo_cache
-
-
-def collect_region_seed_keys(
-    csv_files: list[str],
-) -> tuple[
-    set[str],
-    set[tuple[str, str]],
-    set[tuple[str, str, str]],
-]:
-    """
-    CSV들에서 Region 삽입용 유니크 키를 수집합니다.
-    - depth0: sido
-    - depth1: (sido, sigungu)
-    - depth2: (sido, sigungu, normalized_emd)
-    """
-
-    depth0_keys: set[str] = set()
-    depth1_keys: set[tuple[str, str]] = set()
-    depth2_keys: set[tuple[str, str, str]] = set()
-
-    print("지역 키 집계 중...")
-
-    for csv_file in csv_files:
-        file_name = Path(csv_file).name
-        is_property_file = "아파트(매매)_실거래가" in file_name or "아파트(전월세)_실거래가" in file_name
-
-        rows = read_csv_file(csv_file)
-        total = len(rows)
-        def run(idx: int):
-            row = rows[idx]
-            if row.get("전월세구분") == "월세":
-                return
-            if is_property_file:
-                parsed = parse_sgg_field(row.get("시군구") or "")
-                if parsed is None:
-                    return
-                sido, sigungu, emd_raw = parsed
-            else:
-                sido = (row.get("SIDO_NM") or "").strip()
-                sigungu = (row.get("SIGNGU_NM") or "").strip()
-                emd_raw = (row.get("EMD_NM") or "").strip()
-
-            if sido != "서울특별시" or not sigungu:
-                return
-
-            emd_normalized = normalize_dong_for_region(emd_raw)
-            if not emd_normalized:
-                return
-
-            depth0_keys.add(sido)
-            depth1_keys.add((sido, sigungu))
-            depth2_keys.add((sido, sigungu, emd_normalized))
-        run_with_progress(f"[{Path(file_name).name}]", total, run, interval=PROGRESS_PRINT)
-
-    return depth0_keys, depth1_keys, depth2_keys
-
-
-def insert_regions(
-    db: Session,
-    version: Version,
-    csv_files: list[str],
-) -> dict[tuple[str, str, str], Region]:
-    """
-    Region을 depth 순서대로 먼저 삽입/갱신합니다.
-    반환값은 (sido, sigungu, normalized_emd) -> Region 맵입니다.
-    """
-
-    depth0_keys, depth1_keys, depth2_keys = collect_region_seed_keys(csv_files)
-
-    depth0_map: dict[str, Region] = {}
-    depth1_map: dict[tuple[str, str], Region] = {}
-    depth2_map: dict[tuple[str, str, str], Region] = {}
-
-    print("지역 데이터 삽입 중...")
-
-    items0 = sorted(depth0_keys)
-    total0 = len(items0)
-    def run0(idx: int):
-        sido = items0[idx]
-        depth0_map[sido] = get_or_create_region_depth0(db, version.id, sido)
-        if idx % DB_BATCH_SIZE == 0:
-            db.flush()
-    run_with_progress("depth0", total0, run0, interval=PROGRESS_PRINT)
-    if depth0_keys: db.flush()
-
-    items1 = sorted(depth1_keys)
-    total1 = len(items1)
-    def run1(idx: int):
-        sido, sigungu = items1[idx]
-        parent = depth0_map.get(sido)
-        if parent is None:
-            return
-        depth1_map[(sido, sigungu)] = get_or_create_region_depth1(db, version.id, parent.id, sigungu, sido)
-        if idx % DB_BATCH_SIZE == 0:
-            db.flush()
-    run_with_progress("depth1", total1, run1, interval=PROGRESS_PRINT)
-    if depth1_keys: db.flush()
-
-    items2 = sorted(depth2_keys)
-    total2 = len(items2)
-    def run2(idx: int):
-        sido, sigungu, emd_normalized = items2[idx]
-        parent = depth1_map.get((sido, sigungu))
-        if parent is None:
-            return
-        depth2_map[(sido, sigungu, emd_normalized)] = get_or_create_region_depth2(db, version.id, parent.id, emd_normalized, sido, sigungu)
-        if idx % DB_BATCH_SIZE == 0:
-            db.flush()
-    run_with_progress("depth2", total2, run2, interval=PROGRESS_PRINT)
-    if depth2_keys: db.flush()
-
-    return depth2_map
-
-
-def insert_infrastructures(
-    db: Session,
-    version: Version,
-    csv_files: list[str],
-    infra_type_id_map: dict[str, int],
-    region_map: dict[tuple[str, str, str], Region],
-) -> int:
-    count = {
-        "inserted": 0,
-        "processed": 0,
+    # ====================================================
+    # 7.: 19자리 고유번호(source_id) 기준 단지화 압축 (중복 제거)
+    # ====================================================
+    print("  - ⏳ 같은 아파트 단지(동별 데이터)를 하나의 대표 단지 데이터로 압축 중...")
+    agg_rules = {
+        "lon": "mean",
+        "lat": "mean",
+        "land_lot_address": "first",
+        "road_name_address": "first",  # 행안부 마스터 기준으로 완벽히 통일된 주소 채택
+        "name": "first",
+        "type": "first",
+        "bjd_code": "first"
     }
 
-    # 1) 인프라별(type + name) 모든 좌표 수집
-    # key: (infra_type_name, infra_name) -> list of (lat, lon)
-    infra_coords: dict[tuple[str, str], list[tuple[Decimal, Decimal]]] = {}
+    res_df = res_df.groupby("source_id", as_index=False).agg(agg_rules)
+    res_df = res_df.replace({np.nan: None})
 
-    print("인프라 좌표 수집 중...")
-    for csv_file in csv_files:
-        lower_name = Path(csv_file).name.lower()
+    GDF["AL_D164"] = res_df
 
-        matched = None
-        for key, value in INFRA_FILE_MAP.items():
-            if key in lower_name:
-                matched = value
+
+def parse_region(row: dict[str, Any], field_mapping: dict[str, Any], context: dict[str, Any]):
+    name = get_field_value(row, field_mapping["이름"])
+    source_id = get_field_value(row, field_mapping["id"])
+
+    if field_mapping["type"] == "main":
+        if not name.startswith("서울"):
+            return
+
+        status = get_field_value(row, field_mapping["상태"])
+        if status != "존재":
+            return
+        
+        data = {
+            "source_id": source_id,
+            "name": name,
+            "depth": name.count(" "),
+        }
+        REGION_NAME_MAP[name] = data
+        BJD_CODE_MAP[source_id] = name
+        BJD_CODE_MAP[name] = source_id
+        return data
+    elif field_mapping["type"] == "academy":
+        status = get_field_value(row, field_mapping["운영상태"])
+        if status != "개원":
+            return
+
+        try:
+            academy_type = get_field_value(row, field_mapping["유형"])
+            if academy_type == "교습소":
+                return
+
+            addr = get_field_value(row, field_mapping["도로명주소"])
+            addr = normalize_sido(addr)
+            si, gu = addr.split()[:2]
+
+            addr_detail = get_field_value(row, field_mapping["도로명상세주소"])
+            start_idx = addr_detail.find("(")
+            if start_idx == -1: return
+
+            details = [
+                d.rstrip("층").strip()
+                for a in addr_detail[start_idx:].split("(")
+                for b in a.split(")")
+                for c in b.replace(".", ",").split(",")
+                for d in c.split(" ")
+                if d.strip()
+            ]
+            context.setdefault("academy", []).append((si, gu, details))
+        except:
+            pass
+
+def post_parse_region(context: dict[str, Any]):
+    academy = context.get("academy", [])
+
+    for si, gu, details in academy:
+        dong = None
+        for item in details:
+            checks = get_next_region_name(item)
+            for curr in checks:
+                if not curr: continue
+                full_name = f"{si} {gu} {curr}"
+                if full_name in REGION_NAME_MAP:
+                    dong = curr
+                    break
+        if not dong: continue
+        for key in [si, f"{si} {gu}", f"{si} {gu} {dong}"]:
+            REGION_NAME_MAP.get(key, {}).setdefault("academy_count", 0)
+            REGION_NAME_MAP[key]["academy_count"] += 1
+
+
+def parse_apartment(row: dict[str, Any], field_mapping: dict[str, Any], context: dict[str, Any]):
+    bjd_codes = context.setdefault("bjd_codes", {})
+    if field_mapping["type"] == "main":
+        gdf = GDF["AL_D164"]
+        records = gdf.to_dict(orient="records")
+        results = context.setdefault("results", {})
+        for record in records:
+            bjd_codes[record["source_id"]] = record["bjd_code"]
+            results[record["source_id"]] = {
+                "source_id": record["source_id"],
+                "type": record["type"],
+                "name": record["name"],
+                "land_lot_address": record["land_lot_address"],
+                "road_name_address": record["road_name_address"],
+                "coordinates": (record["lat"], record["lon"]),
+            }
+    elif field_mapping["type"] == "apartment":
+        name = get_field_value(row, field_mapping["이름"])
+        apt_id = get_field_value(row, field_mapping["id"])
+        
+        rn_address = get_field_value(row, field_mapping["도로명주소"])
+        sido = normalize_sido(get_field_value(row, field_mapping["시도"]) or "")
+        sigungu = get_field_value(row, field_mapping["시군구"])
+        dong = get_field_value(row, field_mapping["읍면동"])
+        jibun_suffix = get_field_value(row, field_mapping["나머지주소"])
+        road_name = get_field_value(row, field_mapping["도로명"])
+        road_suffix = get_field_value(row, field_mapping["도로상세주소"])
+        dong_count = parse_int(get_field_value(row, field_mapping["동수"]))
+        household_count = parse_int(get_field_value(row, field_mapping["세대수"]))
+        parking_count = parse_float(get_field_value(row, field_mapping["주차대수"]))
+        parking_per_household = None if parking_count is None or household_count is None else parking_count / household_count if household_count else 0
+
+        ll_address = nomalize_apartment_address(name, all_join_or_none(sido, sigungu, dong, jibun_suffix) or "") or None
+        rn_address = nomalize_apartment_address(name, rn_address or all_join_or_none(sido, sigungu, road_name, road_suffix) or "") or None
+
+        def extract_rnnum_from_kapt():
+            rn_key = rn_address.replace(" ", "") if rn_address else None
+            if rn_key in ADDRESS_MAP["rnaddr_to_rnnum"]:
+                return ADDRESS_MAP["rnaddr_to_rnnum"][rn_key][0]
+            ll_key = ll_address.replace(" ", "") if ll_address else None
+            if ll_key in ADDRESS_MAP["jibun_to_rnnum"]:
+                return ADDRESS_MAP["jibun_to_rnnum"][ll_key][0]
+            return None # 양쪽 다 실패 시 안전하게 Null 리턴
+        source_id = extract_rnnum_from_kapt()
+
+        data = {
+            "source_id": source_id or apt_id,
+            "name": name,
+            "land_lot_address": ll_address,
+            "road_name_address": rn_address,
+            "dong_count": dong_count,
+            "household_count": household_count,
+            "parking_count": parking_count,
+            "parking_per_household": parking_per_household,
+        }
+
+        if not source_id:
+            coords = get_coords_from_row(row, field_mapping)
+            if not coords:
+                return
+
+            checks = get_next_region_name(dong)
+            for curr in checks:
+                if not curr: continue
+                full_name = f"{sido} {sigungu} {curr}"
+                if full_name in BJD_CODE_MAP:
+                    dong = curr
+                    break
+
+            # BJD_CODE_MAP[full_name]: 항상 존재해야 함
+            bjd_codes[apt_id] = BJD_CODE_MAP[full_name]
+            return {
+                **data,
+                "coordinates": coords,
+            }
+        else:
+            if ll_address: context.setdefault("extra_data", {})[ll_address.replace(" ", "")] = data
+            if rn_address: context.setdefault("extra_data", {})[rn_address.replace(" ", "")] = data
+
+
+def parse_school(row: dict[str, Any], field_mapping: dict[str, Any], context: dict[str, Any]):
+    name = get_field_value(row, field_mapping["이름"])
+    source_id = get_field_value(row, field_mapping["id"])
+
+    coords = get_coords_from_row(row, field_mapping)
+    if not coords:
+        return
+
+    status = get_field_value(row, field_mapping["운영상태"])
+    if status != "운영":
+        return
+
+    address = get_field_value(row, field_mapping["도로명주소"]) or get_field_value(row, field_mapping["지번주소"])
+    if not address.startswith("서울"):
+        return
+
+    school_type = get_field_value(row, field_mapping["유형"])
+    infrastructure_type = "ELEMENTARY_SCHOOL" if school_type == "초등학교" else "MIDDLE_SCHOOL" if school_type == "중학교" else "HIGH_SCHOOL" if school_type == "고등학교" else None
+    if not infrastructure_type:
+        return
+    
+    # 학군?
+    # 횡단보도 수?
+    
+    return {
+        "type": infrastructure_type,
+        "source_id": source_id,
+        "name": name,
+        "coordinates": coords,
+        "details": None,
+    }
+
+
+def parse_subway_station(row: dict[str, Any], field_mapping: dict[str, Any], context: dict[str, Any]):
+    name = get_field_value(row, field_mapping["이름"])
+    source_id = get_field_value(row, field_mapping["id"])
+
+    if field_mapping["type"] == "main":
+        coords = get_coords_from_row(row, field_mapping)
+        if coords:
+            old_coords = context.setdefault("coords", {}).setdefault(source_id, {})
+            count = old_coords.get("count")
+            if count is None:
+                old_coords["count"] = 1
+                old_coords["lat"] = coords[0]
+                old_coords["lng"] = coords[1]
+            else:
+                count += 1
+                old_coords["count"] += count
+                old_coords["lat"] += (coords[0] - old_coords["lat"]) / count
+                old_coords["lng"] += (coords[1] - old_coords["lng"]) / count
+
+        return {
+            "type": "SUBWAY_STATION",
+            "source_id": source_id,
+            "name": name,
+        }
+    elif field_mapping["type"] == "lines":
+        result = context.get("results", {}).get(source_id)
+        if not result: return
+        line = get_field_value(row, field_mapping["노선"])
+        result.setdefault("details", {}).setdefault("lines", []).append(line)
+
+def post_parse_subway_station(context: dict[str, Any]):
+    all_coords = context.get("coords", {})
+    for source_id in all_coords:
+        coords = all_coords[source_id]
+        if not coords: continue
+        context.get("results", {}).get(source_id, {})["coordinates"] = (coords["lat"], coords["lng"])
+
+
+def parse_large_hospital(row: dict[str, Any], field_mapping: dict[str, Any], context: dict[str, Any]):
+    name = get_field_value(row, field_mapping["이름"])
+    source_id = get_field_value(row, field_mapping["id"])
+
+    coords = get_coords_from_row(row, field_mapping)
+    if not coords:
+        return
+    
+    code = get_field_value(row, field_mapping["응급의료기관코드명"])
+    
+    details = {
+        "응급의료기관코드명": code,
+    }
+    
+    infrastructure_type = "LARGE_HOSPITAL"
+    return {
+        "type": infrastructure_type,
+        "source_id": source_id,
+        "name": name,
+        "coordinates": coords,
+        "details": details,
+    }
+
+
+def parse_large_supermarket(row: dict[str, Any], field_mapping: dict[str, Any], context: dict[str, Any]):
+    name = get_field_value(row, field_mapping["이름"])
+    source_id = get_field_value(row, field_mapping["id"])
+    coords = get_coords_from_row(row, field_mapping)
+    if not coords:
+        return
+    
+    status = get_field_value(row, field_mapping["영업상태명"])
+    if status != "영업/정상":
+        return
+    
+    store_type = get_field_value(row, field_mapping["점포구분명"])
+    if store_type not in ["대규모점포", "준대규모점포"]:
+        return
+    
+    biz_type = get_field_value(row, field_mapping["업태구분명"])
+    
+    infrastructure_type = "LARGE_SUPERMARKET"
+    return {
+        "type": infrastructure_type,
+        "source_id": source_id,
+        "name": name,
+        "coordinates": coords,
+        "details": {
+            "업태구분명": biz_type,
+            "점포구분명": store_type,
+        },
+    }
+
+
+def parse_park(row: dict[str, Any], field_mapping: dict[str, Any], context: dict[str, Any]):
+    name = get_field_value(row, field_mapping["이름"])
+    source_id = get_field_value(row, field_mapping["id"])
+    
+    coords = get_coords_from_row(row, field_mapping)
+    if not coords:
+        return
+
+    address = get_field_value(row, field_mapping["지번주소"]) or get_field_value(row, field_mapping["도로명주소"])
+    if not address.startswith("서울"):
+        return
+    
+    try:
+        park_area = get_field_value(row, field_mapping["면적"])
+    except:
+        park_area = None
+    
+    infrastructure_type = "PARK"
+    return {
+        "type": infrastructure_type,
+        "source_id": source_id,
+        "name": name,
+        "coordinates": coords,
+        "details": {
+            "면적": park_area,
+        },
+    }
+
+
+def connect_relationships(contexts: dict[str, Any]):
+    # region self relationship
+    regions = contexts.get("동네", {}).get("instances", {})
+    for source_id in regions:
+        ins = regions[source_id]
+        name = ins.name
+        if " " in name:
+            parent_name = " ".join(name.split(" ")[:-1])
+            parent_source_id = REGION_NAME_MAP[parent_name]["source_id"]
+            parent_ins = regions[parent_source_id]
+            ins.parent = parent_ins
+
+    # property - region relationship
+    context = contexts.get("건물", {})
+    bjd_codes = context.get("bjd_codes", {})
+    properties = context.get("instances", {})
+    extra_data = context.get("extra_data", {})
+    for source_id in properties:
+        ins = properties[source_id]
+
+        bjd_code = bjd_codes[source_id]
+        ins.region = regions[bjd_code]
+
+        keys = [
+            ins.land_lot_address,
+            ins.road_name_address,
+        ]
+        extra = None
+        for key in keys:
+            key = key.replace(" ", "").strip() if key else None
+            if not key: continue
+            if key in extra_data:
+                extra = extra_data[key]
                 break
-        if matched is None:
-            continue
-
-        infra_type_name, infra_name_col = matched
-
-        rows = read_csv_file(csv_file)
-        total_rows = len(rows)
-        def run_rows(idx: int):
-            row = rows[idx]
-            if row.get("SIDO_NM", "").strip() != "서울특별시":
-                return
-
-            infra_name = (row.get(infra_name_col) or "").strip()
-            lat = parse_decimal(row.get(f"{infra_name_col}_LA") or row.get("NGHB_SUBWAY_STATN_LA"))
-            lon = parse_decimal(row.get(f"{infra_name_col}_LO") or row.get("NGHB_SUBWAY_STATN_LO"))
-
-            # 각 파일별 위경도 컬럼명이 다르므로 suffix 기반으로 보강
-            if lat is None or lon is None:
-                lat = parse_decimal(
-                    row.get("ELESCH_LA")
-                    or row.get("NGHB_EDU_FCLTY_LA")
-                    or row.get("NGHB_PRKGRNLND_SPCE_LA")
-                    or row.get("NGHB_LGZ_DISTB_FCLTY_LA")
-                    or row.get("NGHB_LGZ_MLFLT_LA")
-                    or row.get("NGHB_SUBWAY_STATN_LA")
-                )
-                lon = parse_decimal(
-                    row.get("ELESCH_LO")
-                    or row.get("NGHB_EDU_FCLTY_LO")
-                    or row.get("NGHB_PRKGRNLND_SPCE_LO")
-                    or row.get("NGHB_LGZ_DISTB_FCLTY_LO")
-                    or row.get("NGHB_LGZ_MLFLT_LO")
-                    or row.get("NGHB_SUBWAY_STATN_LO")
-                )
-
-            if not (infra_name and lat is not None and lon is not None):
-                return
-
-            infra_key = (infra_type_name, infra_name)
-            if infra_key not in infra_coords:
-                infra_coords[infra_key] = []
-            infra_coords[infra_key].append((lat, lon))
-        run_with_progress(f"[{Path(csv_file).name}]", total_rows, run_rows, interval=PROGRESS_PRINT)
-
-    # 2) 각 인프라별로 좌표 평균을 구하고 역지오코딩
-    print("좌표 평균 계산 및 역지오코딩 중...")
-    avg_coords_to_geocode: dict[tuple[str, str], tuple[Decimal, Decimal]] = {}  # (type, name) -> avg (lat, lon)
-    coords = sorted(infra_coords.items())
-    total_coords = len(coords)
-    def run_coords(idx: int):
-        (infra_type_name, infra_name), coords_list = coords[idx]
-
-        # 모든 좌표의 평균 계산
-        avg_lat = sum(Decimal(c[0]) for c in coords_list) / len(coords_list)
-        avg_lon = sum(Decimal(c[1]) for c in coords_list) / len(coords_list)
-        avg_coords_to_geocode[(infra_type_name, infra_name)] = (avg_lat, avg_lon)
-    run_with_progress("좌표 평균", total_coords, run_coords, interval=PROGRESS_PRINT)
-
-    # 3) 평균 좌표들을 배치 역지오코딩
-    avg_coords_set = set(avg_coords_to_geocode.values())
-    geo_cache = batch_geocode_coordinates(avg_coords_set)
-
-    # 4) 역지오코딩 결과로 인프라 데이터 처리
-    print("인프라 데이터 삽입 중...")
-    deduped_infra: dict[tuple[str, str, str, str, str], tuple[Decimal, Decimal]] = {}
-    avgs = list(avg_coords_to_geocode.items())
-    total_avrs = len(avgs)
-    def run_avgs(idx: int):
-        (infra_type_name, infra_name), (avg_lat, avg_lon) = avgs[idx]
-        address = geo_cache.get((avg_lat, avg_lon))
-        if address is None:
-            return
-
-        sido, sigungu, emd = address
-        if not (sido and sigungu and emd):
-            return
-
-        dedupe_key = (infra_type_name, sido, sigungu, emd, infra_name)
-        deduped_infra[dedupe_key] = (avg_lat, avg_lon)
-    run_with_progress("인프라 처리", total_avrs, run_avgs, interval=PROGRESS_PRINT)
-
-    # 5) 중복 제거된 결과를 DB에 삽입
-    infras = list(deduped_infra.items())
-    total_infras = len(infras)
-    def run_infras(idx: int):
-        (infra_type_name, sido, sigungu, emd, infra_name), (lat, lon) = infras[idx]
-        type_id = infra_type_id_map.get(infra_type_name)
-        if type_id is None:
-            return
-
-        region_key = (sido, sigungu, normalize_dong_for_region(emd))
-        region = region_map.get(region_key)
-        if region is None:
-            return
-
-        _, is_new = get_or_create_infrastructure(
-            db,
-            type_id,
-            region.id,
-            infra_name,
-            lat,
-            lon,
-            version.id,
-        )
-        if is_new:
-            count["inserted"] += 1
-
-        count["processed"] += 1
-        if count["processed"] % DB_BATCH_SIZE == 0:
-            db.flush()
-    run_with_progress("DB 삽입", total_infras, run_infras, interval=PROGRESS_PRINT)
-
-    if count["processed"] % DB_BATCH_SIZE != 0:
-        db.flush()
-
-    return count["inserted"]
-
-def collect_property_seed_data(csv_files: list[str]) -> dict[tuple[str, str, str, str, str], dict[str, Any]]:
-    """
-    매매/전월세 CSV에서 Property 후보를 집계합니다.
-    key: (시도, 시군구, 원본동명, 번지, 단지명)
-    """
-
-    property_data: dict[tuple[str, str, str, str, str], dict[str, Any]] = {}
-
-    print("부동산 집계 데이터 생성 중...")
-    for csv_file in csv_files:
-        file_name = Path(csv_file).name
-        is_sale = "아파트(매매)_실거래가" in file_name
-        is_rent = "아파트(전월세)_실거래가" in file_name
-        if not (is_sale or is_rent):
-            continue
-
-        rows = read_csv_file(csv_file)
-        total = len(rows)
-        def run(idx: int):
-            row = rows[idx]
-            parsed = parse_sgg_field(row.get("시군구") or "")
-            if parsed is None:
-                return
-            if row.get("전월세구분") == "월세":
-                return
-            sido, sigungu, emd_raw = parsed
-            if sido != "서울특별시":
-                return
-
-            lotno = normalize_lotno(row.get("번지") or "")
-            apt_name = (row.get("단지명") or "").strip()
-            if not (lotno and apt_name):
-                return
-
-            key = (sido, sigungu, emd_raw, lotno, apt_name)
-            item = property_data.setdefault(
-                key,
-                {
-                    "road_name": None,
-                    "sale_min": None,
-                    "sale_max": None,
-                    "deposit_min": None,
-                    "deposit_max": None,
-                },
-            )
-
-            road_name = (row.get("도로명") or "").strip()
-            if road_name:
-                item["road_name"] = f"{sido} {sigungu} {road_name}"
-
-            if is_sale:
-                sale_price_raw = parse_price_to_int(row.get("거래금액(만원)"))
-                sale_price = None if sale_price_raw is None else sale_price_raw * 10_000
-                if sale_price is not None and sale_price > 0:
-                    item["sale_min"] = sale_price if item["sale_min"] is None else min(item["sale_min"], sale_price)
-                    item["sale_max"] = sale_price if item["sale_max"] is None else max(item["sale_max"], sale_price)
-
-            if is_rent:
-                deposit_raw = parse_price_to_int(row.get("보증금(만원)"))
-                deposit = None if deposit_raw is None else deposit_raw * 10_000
-                if deposit is not None and deposit > 0:
-                    item["deposit_min"] = deposit if item["deposit_min"] is None else min(item["deposit_min"], deposit)
-                    item["deposit_max"] = deposit if item["deposit_max"] is None else max(item["deposit_max"], deposit)
-        run_with_progress(f"[{Path(csv_file).name}]", total, run, interval=PROGRESS_PRINT)
-
-    return property_data
+        if not extra: continue
+        if not ins.name: ins.name = extra.get("name")
+        if not ins.land_lot_address: ins.land_lot_address = extra.get("land_lot_address")
+        if not ins.road_name_address: ins.road_name_address = extra.get("road_name_address")
+        ins.dong_count = extra.get("dong_count")
+        ins.household_count = extra.get("household_count")
+        ins.parking_count = extra.get("parking_count")
+        ins.parking_per_household = extra.get("parking_per_household")
 
 
-def insert_properties(
-    db: Session,
-    version: Version,
-    property_data: dict[tuple[str, str, str, str, str], dict[str, Any]],
-    coord_map: dict[tuple[str, str, str, str], tuple[Decimal, Decimal]],
-    region_map: dict[tuple[str, str, str], Region],
-) -> tuple[int, int]:
-    count = {
-        "inserted": 0,
-        "processed": 0,
-        "skipped_no_coord": 0,
+def _main(db: Session, target_files: list[str]):
+    print(f"데이터베이스에서 기존 데이터 조회 중...")
+    REGION_UNIQUE_MAP.update({x.source_id: x for x in db.query(Region).all()})
+    PROPERTY_UNIQUE_MAP.update({x.source_id: x for x in db.query(Property).all()})
+    INFRA_UNIQUE_MAP.update({(x.type.value, x.source_id): x for x in db.query(Infrastructure).all()})
+    MAP_ROUTER = {
+        Region: REGION_UNIQUE_MAP,
+        Property: PROPERTY_UNIQUE_MAP,
+        Infrastructure: INFRA_UNIQUE_MAP
     }
+    def get_model_instance(model_cls, result: dict[str, Any]):
+        target_map = MAP_ROUTER.get(model_cls, {})
+        
+        if model_cls is Region or model_cls is Property:
+            key = result["source_id"]
+        elif model_cls is Infrastructure:
+            key = (result.get("type"), result.get("source_id"))
 
-    print("부동산 데이터 삽입 중...")
+        return target_map.pop(key, None)
 
-    items = list(property_data.items())
-    total = len(items)
-    def run(idx: int):
-        (sido, sigungu, emd_raw, lotno, apt_name), item = items[idx]
-        region_key = (sido, sigungu, normalize_dong_for_region(emd_raw))
-        region = region_map.get(region_key)
-        if region is None:
-            return
+    print(f"데이터 처리 중...")
+    contexts: dict[str, Any] = {}
+    map_items = [
+        item
+        for field_map in [
+            PRELOAD_FIELD_NAME_MAP,
+            REGION_FIELD_NAME_MAP,
+            PROPERTY_FIELD_NAME_MAP,
+            INFRA_FIELD_NAME_MAP,
+        ]
+        for item in field_map.items()
+    ]
+    priorities = {}
+    for k, v in map_items:
+        p = v.get("priority", 0)
+        priorities.setdefault(p, []).append((k, v))
 
-        # 좌표 맵과 동일한 정규화 규칙 적용
-        emd_normalized = normalize_dong_for_region(emd_raw)
-        coord_key = (sido, sigungu, emd_normalized, lotno)
-        coord = coord_map.get(coord_key)
+    filepath_and_names = [(file, Path(file).stem) for file in target_files]
+    for p in sorted(priorities):
+        for key, field_mapping in priorities[p]:
+            file_extension = field_mapping.get("file_extension", ".csv")
+            filtered_files = filter(lambda x: x[1].startswith(key) and x[0].endswith(file_extension), filepath_and_names)
+            for filepath, filename in filtered_files:
+                is_iterable = False
+                if file_extension != ".shp":
+                    parser = field_mapping.get("parser", "csv")
+                    if parser == "csv":
+                        is_iterable = True
+                        header = field_mapping.get("header", True)
+                        fieldnames = field_mapping.get("fieldnames")
+                        delimiter = field_mapping.get("delimiter", ",")
+                        rows = read_csv_file(
+                            filepath,
+                            header=header,
+                            fieldnames=fieldnames,
+                            delimiter=delimiter,
+                        )
+                category = field_mapping["category"]
+                match category:
+                    case "AL_D164":
+                        callback = parse_AL_D164_shp
+                    case "rnaddrkor":
+                        callback = parse_rnaddrkor
+                    case "jibun":
+                        callback = parse_jibun_rnaddrkor
+                    case "동네":
+                        callback = parse_region
+                    case "건물":
+                        callback = parse_apartment
+                    case "학교":
+                        callback = parse_school
+                    case "역사":
+                        callback = parse_subway_station
+                    case "병원":
+                        callback = parse_large_hospital
+                    case "마트":
+                        callback = parse_large_supermarket
+                    case "공원":
+                        callback = parse_park
+                    case _:
+                        continue
 
-        if coord is None:
-            count["skipped_no_coord"] += 1
-            return
+                prefix = f"[{file_extension.strip('.')}] [{filename}]"
+                context = contexts.setdefault(category, {})
+                if is_iterable:
+                    def run(idx: int, row: dict[str, Any]):
+                        result = callback(row, field_mapping, context)
+                        if not result: return
 
-        lat, lon = coord
-        land_lot_address = f"{sido} {sigungu} {emd_raw} {lotno}"
+                        source_id = get_field_value(row, field_mapping["id"])
+                        context.setdefault("results", {})[source_id] = result
+                    run_with_progress(rows, prefix, run, interval=PROGRESS_PRINT)
+                else:
+                    def run(idx: int, filepath: str):
+                        callback(filepath, field_mapping, context)
+                    run_with_progress([filepath], prefix, run, interval=PROGRESS_PRINT)
 
-        _, is_new = get_or_create_property(
-            db,
-            version.id,
-            region.id,
-            apt_name,
-            land_lot_address,
-            lat,
-            lon,
-            road_name_address=item.get("road_name"),
-            sale_price_min=item.get("sale_min"),
-            sale_price_max=item.get("sale_max"),
-            deposit_price_min=item.get("deposit_min"),
-            deposit_price_max=item.get("deposit_max"),
-        )
-        if is_new:
-            count["inserted"] += 1
+    print(f"데이터 정리 중...")
+    for category in contexts:
+        print(f"  - {category}")
+        context = contexts[category]
+        match category:
+            case "동네":
+                callback = post_parse_region
+            case "역사":
+                callback = post_parse_subway_station
+            case _:
+                continue
+        callback(context)
 
-        count["processed"] += 1
-        if count["processed"] % DB_BATCH_SIZE == 0:
-            db.flush()
-    run_with_progress("부동산 처리", total, run, interval=PROGRESS_PRINT)
+    print(f"데이터 삽입 중...")
+    for category in contexts:
+        match category:
+            case "동네":
+                Model = Region
+            case "건물":
+                Model = Property
+            case _:
+                Model = Infrastructure
 
-    if count["processed"] % DB_BATCH_SIZE != 0:
-        db.flush()
+        context = contexts[category]
+        results = context.get("results") or {}
+        items = list(results.values())
+        def run(idx: int, result):
+            if not result: return
+            ins = get_model_instance(Model, result)
+            if ins:
+                for key, val in result.items():
+                    setattr(ins, key, val)
+            else:
+                ins = Model(**result)
+                db.add(ins)
+            ins.deleted_at = None
+            context.setdefault("instances", {})[result["source_id"]] = ins
+        run_with_progress(items, f"[{category}]", run, interval=PROGRESS_PRINT)
 
-    return count["inserted"], count["skipped_no_coord"]
+    print(f"테이블 관계 설정 중...")
+    connect_relationships(contexts)
 
-def _main(db: Session, version: Version, csv_files: list[str]):
-    insert_infra_types(db)
-
-    infra_type_id_map = build_infra_type_id_map(db)
-    coord_map = build_coordinate_map_from_infra(csv_files)
-    property_data = collect_property_seed_data(csv_files)
-    # 주소별 평수와 평단가를 수집해 property_data의 전세(원) 범위에 반영
-    area_map = collect_address_area_range_from_transact(csv_files)
-    price_map = collect_address_price_per_pyeong_from_complex(csv_files)
-    if area_map and price_map:
-        merged = merge_address_estimates_to_properties(property_data, area_map, price_map)
-        if merged:
-            print(f"  * 주소 기반 전세 추정 병합: {merged}건")
-    region_map = insert_regions(db, version, csv_files)
-    _ = insert_infrastructures(db, version, csv_files, infra_type_id_map, region_map)
-    _, skipped_no_coord = insert_properties(db, version, property_data, coord_map, region_map)
-    if skipped_no_coord:
-        print(f"  * 좌표 매칭 실패로 건너뜀: {skipped_no_coord}")
+    print(f"데이터 soft delete 처리 중...")
+    for model, curr_map in MAP_ROUTER.items():
+        items = list(curr_map.values())
+        def run(idx: int, ins):
+            ins.deleted_at = ins.deleted_at or func.now()
+        run_with_progress(items, f"[{model.__tablename__}]", run, interval=PROGRESS_PRINT)
 
 
 def main(directory_path: str):
@@ -1064,19 +1145,18 @@ def main(directory_path: str):
             print(f"폴더가 아닙니다: {directory_path}")
             return
         
-        csv_files = get_csv_files(directory_path)
-        files_hash = generate_files_hash(csv_files)
+        files = list(get_files(
+            directory_path,
+            extensions=[".csv", ".txt", ".shp"],
+            recursive=True,
+        ))
 
-        version, created = get_or_create_version(db, files_hash)
-        print(f"version id: {version.id}, hash: {version.hash}")
-        if not created:
-            print(f"같은 파일 해시가 이미 존재합니다. 작업을 종료합니다.")
-            return
-
-        _main(db, version, csv_files)
+        _main(db, files)
     except Exception as e:
+        print()
         print(f"데이터 삽입 중 오류가 발생했습니다. 롤백을 진행합니다. ({e})")
         db.rollback()
+        raise e
     else:
         print("데이터 삽입이 성공적으로 완료되었습니다. 커밋을 진행합니다.")
         db.commit()

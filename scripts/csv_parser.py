@@ -1,112 +1,59 @@
 import csv
-from pathlib import Path
+from typing import TextIO, Generator
+
+from scripts.common import sniff_encoding
 
 
-def sniff_encoding(path: str) -> str:
+def iter_from_header(f: TextIO) -> Generator[str, None, None]:
     """
-    파일의 인코딩을 추측하여 반환합니다.
+    CSV 상단 메타데이터/주석 라인을 건너뛰고
+    헤더 라인부터 yield 합니다.
 
-    Args:
-        path (str): 파일 경로
-
-    Returns:
-        str: "utf-8" 또는 "cp949"
+    규칙:
+    - 따옴표 2개인 라인은 메타데이터/주석으로 간주
+    - 그 외 첫 번째 라인을 헤더로 간주
     """
-
-    try:
-        with open(path, encoding="utf-8") as f:
-            f.readline()
-        return "utf-8"
-    except Exception:
-        return "cp949"
-
-
-def get_csv_files(directory_path: str) -> list[str]:
-    """
-    디렉토리 내의 CSV 파일 목록을 반환합니다.
-    
-    Args:
-        directory_path (str): 디렉토리 경로
-        
-    Returns:
-        list: CSV 파일의 절대 경로 리스트
-    """
-
-    try:
-        csv_files = []
-        path = Path(directory_path)
-        
-        if not path.exists():
-            print(f"디렉토리를 찾을 수 없습니다: {directory_path}")
-            return []
-        
-        if not path.is_dir():
-            print(f"경로가 디렉토리가 아닙니다: {directory_path}")
-            return []
-        
-        for file in path.glob("*.csv"):
-            csv_files.append(str(file.absolute()))
-        
-        return csv_files
-    except Exception as e:
-        print(f"디렉토리 읽기 중 오류 발생: {e}")
-        return []
+    found_header = False
+    for line in f:
+        if not found_header and line.count('"') == 2:
+            continue
+        found_header = True
+        yield line
 
 
-def find_header_line(path: str, encoding: str) -> int:
-    """
-    따옴표 개수로 헤더 위치 탐지
-    
-    - 따옴표 2개: 메타데이터/주석(건너뛰기)
-    - 위 라인 제외 후 첫 라인을 헤더로 간주
-
-    Args:
-        path (str): 파일 경로
-        encoding (str): 파일 인코딩
-    
-    Returns:
-        int: 헤더가 위치한 라인 번호 (0부터 시작)
-    """
-
-    with open(path, encoding=encoding, errors="ignore") as f:
-        for i, line in enumerate(f):
-            if line.count('"') == 2:
-                continue
-            return i
-    return 0
-
-
-def read_csv_file(file_path: str, column_names: list[str] | None = None) -> list[dict[str, str]]:
+def read_csv_file(
+    file_path: str,
+    *,
+    header: bool = True,
+    fieldnames: list[str] | None = None,
+    delimiter: str = ","
+) -> Generator[dict[str, str], None, None]:
     """
     CSV 파일을 읽어 리스트로 반환합니다.
     
     Args:
         file_path (str): CSV 파일 경로
-        column_names (list[str] | None): CSV 컬럼명을 직접 지정할 때 사용
+        has_header (bool): CSV 파일에 헤더가 포함되어 있는지 여부 (기본값: True)
+        fieldnames (list[str] | None): CSV 컬럼명을 직접 지정할 때 사용
+        delimiter (str): CSV 구분자 (기본값: ",")
         
     Returns:
-        list: CSV 파일의 데이터를 딕셔너리 형태로 변환한 리스트
+        Generator[dict[str, str], None, None]: CSV 파일의 데이터를 딕셔너리 형태로 반환하는 제너레이터
     """
 
     try:
-        data = []
         enc = sniff_encoding(file_path)
-        header_line = find_header_line(file_path, enc)
         with open(file_path, 'r', encoding=enc) as file:
-            for _ in range(header_line):
-                file.readline()
-
-            reader = csv.DictReader(file, fieldnames=column_names)
-            if column_names:
+            csv.reader
+            reader = csv.DictReader(
+                iter_from_header(file),
+                fieldnames=fieldnames,
+                delimiter=delimiter,
+            )
+            if fieldnames and header:
                 next(reader, None)
-
-            if reader.fieldnames:
-                for row in reader:
-                    data.append(row)
-                return data
+            yield from reader
     except FileNotFoundError:
         print(f"파일을 찾을 수 없습니다: {file_path}")
     except Exception as e:
         print(f"파일 읽기 중 오류 발생: {e}")
-
-    return []
