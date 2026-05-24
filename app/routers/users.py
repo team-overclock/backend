@@ -1,14 +1,14 @@
 """사용자 엔드포인트 라우트 모듈."""
 
 from datetime import datetime
-from fastapi import APIRouter, Depends, Request, status
+from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
-from ..models import User, UserRecommendation
+from ..models import User, SearchLog
 from ..database import get_db
+from ..core.enums import AppErrorCodeEnum
 from ..core.exception import AppException
-from ..core.validate import verify_region
-from ..schemas.error import AppError, RegionError
+from ..schemas.error import AppError
 from ..schemas.user import UserInfoUpdateRequest, UserInfo, UserPasswordChangeRequest
 from ..schemas.service import UserRecommendations
 from ..dependencies import only_self_access, get_current_user_recommendations
@@ -28,7 +28,6 @@ router = APIRouter(
     status_code=status.HTTP_200_OK,
 )
 def user_info(
-    request: Request,
     user: User = Depends(only_self_access),
 ) -> UserInfo:
     """사용자 정보 조회"""
@@ -39,9 +38,6 @@ def user_info(
     "",
     summary="사용자 정보 수정",
     status_code=status.HTTP_200_OK,
-    responses={
-        400: { "model": RegionError, "description": "지원하지 않는 동네인 경우" },
-    }
 )
 def user_info_update(
     body: UserInfoUpdateRequest,
@@ -53,8 +49,6 @@ def user_info_update(
         user.name = body.name
     if body.email:
         user.email = body.email
-    if "region_id" in body.model_dump(exclude_unset=True):
-        user.region = None if body.region_id is None else verify_region(db, body.region_id, 2)
 
     db.commit()
     db.refresh(user)
@@ -72,7 +66,6 @@ def user_info_update(
 )
 def user_password_change(
     body: UserPasswordChangeRequest,
-    request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(only_self_access),
 ):
@@ -80,10 +73,12 @@ def user_password_change(
     if not body.current_password or not user.verify_password(body.current_password):
         raise AppException(
             status_code=status.HTTP_400_BAD_REQUEST,
+            code=AppErrorCodeEnum.INVALID_CREDENTIALS,
             message="현재 비밀번호가 일치하지 않습니다.",
         )
-    user.password = body.new_password
-    db.commit()
+    if body.new_password != body.current_password:
+        user.password = body.new_password
+        db.commit()
     # session.logout(request)  # 비밀번호 변경 후 세션 만료 (재로그인 요구)
     return
 
@@ -96,7 +91,7 @@ def user_password_change(
 )
 def user_recommendations(
     user: User = Depends(only_self_access),
-    user_recommendations: list[UserRecommendation] = Depends(get_current_user_recommendations),
+    user_recommendations: list[SearchLog] = Depends(get_current_user_recommendations),
 ) -> UserRecommendations:
     """추천 요청 목록 조회"""
 
@@ -111,7 +106,7 @@ def user_recommendations(
             {
                 "requested_at": datetime.now(),
                 "last_viewed_at": datetime.now(),
-                "task_id": "unique_hash_value",
+                "task_id": "unique_task_id",
                 "status": "completed",
                 "request_data": {
                     "name": "사용자 지정 추천 이름",
@@ -123,7 +118,7 @@ def user_recommendations(
                         "min": 0,
                         "max": 999999999999,
                     },
-                    "deposit_price": {
+                    "jeonse_price": {
                         "min": 0,
                         "max": 999999999999,
                     },
@@ -132,7 +127,7 @@ def user_recommendations(
             {
                 "requested_at": datetime.now(),
                 "last_viewed_at": datetime.now(),
-                "task_id": "unique_hash_value",
+                "task_id": "unique_task_idw",
                 "status": "in_progress",
                 "request_data": {
                     "name": None,
@@ -145,7 +140,7 @@ def user_recommendations(
                         "min": 0,
                         "max": 999999999999,
                     },
-                    "deposit_price": {
+                    "jeonse_price": {
                         "min": 0,
                         "max": 999999999999,
                     },

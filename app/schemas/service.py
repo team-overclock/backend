@@ -2,6 +2,7 @@
 
 from pydantic import BaseModel, Field
 
+from ..core.enums import InfrastructureTypeEnum, INFRASTRUCTURE_TYPES, INFRASTRUCTURE_TYPE_VALUES
 from .common import (
     PK_AI,
     RegionName,
@@ -15,7 +16,7 @@ from .common import (
 )
 
 
-# public
+# # public
 
 class RegionItem(BaseModel):
     id: PK_AI = Field(description="동네 id")
@@ -27,15 +28,17 @@ class RegionsResponse(BaseModel):
 
 
 class InfrastructureTypeItem(BaseModel):
-    id: PK_AI = Field(description="인프라 유형 id")
-    name: InfrastructureType
+    type: InfrastructureTypeEnum = Field(description="인프라 고유 타입", examples=[INFRASTRUCTURE_TYPES[0]["type"]])
+    emoji: str = Field(description="아이콘 이모지", examples=[INFRASTRUCTURE_TYPES[0]["emoji"]])
+    label: str = Field(description="인프라 한글명", examples=[INFRASTRUCTURE_TYPES[0]["label"]])
+    description: str = Field(description="인프라 상세 설명", examples=[INFRASTRUCTURE_TYPES[0]["description"]])
 
 class InfrastructureTypesResponse(BaseModel):
     total: int = Field(description="인프라 유형 개수")
     items: list[InfrastructureTypeItem] = Field(description="유효한 인프라 유형 목록")
 
 
-# recommendation
+# # recommendation
 
 class PriceRange(BaseModel):
     """가격 범위"""
@@ -46,7 +49,8 @@ class PriceRange(BaseModel):
 class AddressDetails(BaseModel):
     """주소 정보"""
 
-    land_lot: str = Field(description="지번 주소")
+    region: RegionName | None = Field(description="동네 이름")
+    land_lot: str | None = Field(description="지번 주소")
     road_name: str | None = Field(description="도로명 주소")
     latitude: float = Field(description="위도")
     longitude: float = Field(description="경도")
@@ -56,19 +60,24 @@ class RecommendationCreateRequest(BaseModel):
     """추천 생성 요청"""
 
     name: str | None = Field(None, description="화면에 표시할 사용자 지정 추천 이름")
-    region_id: PK_AI = Field(description="관심 있는 동네 ID")
-    infrastructure_type_ids: list[PK_AI] = Field(description="관심 있는 인프라 유형 ID 목록 (나열된 순서대로 높은 가중치 부여)", min_length=1)
+    region_id: PK_AI | None = Field(None, description="관심 있는 동네 ID")
+    infrastructure_types: list[str] = Field(description="관심 있는 인프라 유형 목록 (나열된 순서대로 높은 가중치 부여)", min_length=1, examples=[INFRASTRUCTURE_TYPE_VALUES])
     sale_price: PriceRange | None = Field(None, description="희망 매매 가격 범위")
-    deposit_price: PriceRange | None = Field(None, description="희망 전세 가격 범위")
+    jeonse_price: PriceRange | None = Field(None, description="희망 전세 가격 범위")
 
 class RecommendationCreateRequestResolved(BaseModel):
     """추천 생성 요청 (human-readable)"""
 
     name: str | None = Field(description="사용자 지정 추천에 대한 별칭")
-    region: RegionName = Field(description="관심 있는 동네 이름")
+    region: RegionName | None = Field(description="관심 있는 동네 이름")
     infrastructure_types: list[InfrastructureType] = Field(description="인프라 유형 목록 (높은 가중치 순서)", min_length=1)
     sale_price: PriceRange | None = Field(description="매매 가격 범위")
-    deposit_price: PriceRange | None = Field(description="전세 가격 범위")
+    jeonse_price: PriceRange | None = Field(description="전세 가격 범위")
+
+class RecommendationMetadataUpdateRequest(BaseModel):
+    """추천 메타데이터 업데이트 요청"""
+
+    name: str | None = Field(None, description="화면에 표시할 사용자 지정 추천 이름, None으로 설정 시 기본 이름으로 변경")
 
 class RecommendationCreateResponse(BaseModel):
     """추천 생성 요청에 대한 응답"""
@@ -104,7 +113,7 @@ class RecommendationReportItemSummary(BaseModel):
     score: Score
     address: AddressDetails = Field(description="매물 주소 정보")
     sale_price: int | None = Field(description="매물의 매매 최소 가격")
-    deposit_price: int | None = Field(description="매물의 전세 최소 가격")
+    jeonse_price: int | None = Field(description="매물의 전세 최소 가격")
     infrastructure: list[RecommendationReportItemInfrastructureSummary] = Field(description="매물 주변 인프라 요약 정보 (최대 2개)", max_length=2)
 
 class RecommendationReport(RecommendationCreateResponse):

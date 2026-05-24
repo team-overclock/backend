@@ -9,9 +9,11 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.sessions import SessionMiddleware
 
 from .models import Base
+from .redis import redis
 from .database import engine, SessionLocal
 from .core.exception import AppException
 from .schemas.error import AppError
+from .crud.service import sync_regions_to_redis
 from .dependencies import get_current_user_session
 from .routers import (
     scalar,
@@ -38,6 +40,7 @@ async def lifespan(app: FastAPI):
     db = SessionLocal()
     try:
         demo.create_guest_user(db)
+        sync_regions_to_redis(db, redis)
     except:
         pass
     finally:
@@ -99,6 +102,7 @@ def create_app() -> FastAPI:
         return JSONResponse(
             status_code=exc.status_code,
             content={
+                "code": exc.code,
                 "message": exc.message,
                 "detail": exc.detail,
             },

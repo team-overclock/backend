@@ -54,3 +54,8 @@ class User(Base):
     def verify_password(self, plain_password: str):
         """입력된 비밀번호와 DB의 해시값 비교"""
         return verify_password(self.password, plain_password)
+
+    def __init__(self, **kwargs):
+        if not kwargs.get("name"):
+            kwargs["name"] = (kwargs.get("email") or "").split("@")[0].strip() or None
+        super().__init__(**kwargs)

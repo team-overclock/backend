@@ -1,6 +1,6 @@
-from pydantic import BaseModel, Field, EmailStr
+from pydantic import BaseModel, EmailStr
 
-from .common import UserName, Password
+from .common import PK_STR, UserName, Password
 from .user import UserInfo
 
 
@@ -15,11 +15,10 @@ class UserLoginRequest(BaseModel):
 
 
 class UserCreateRequest(BaseModel):
-    name: UserName
+    name: UserName | None = None
     email: EmailStr
     password: Password
-    region_id: int | None = Field(None, description="동네 ID")
 
 
 class UserSession(BaseModel):
-    cuid: str
+    cuid: PK_STR

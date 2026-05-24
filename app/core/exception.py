@@ -1,4 +1,7 @@
+import enum
 from fastapi import HTTPException
+
+from .enums import AppErrorCodeEnum
 
 
 class AppException(HTTPException):
@@ -8,7 +11,12 @@ class AppException(HTTPException):
             *args,
             **kwargs,
         ):
+        code = kwargs.get("error_code") or kwargs.get("code") or AppErrorCodeEnum.UNKNOWN_ERROR
+        if "error_code" in kwargs: del kwargs["error_code"]
+        if "code" in kwargs: del kwargs["code"]
+
         super().__init__(*args, **kwargs)
+        self.code = code.value if isinstance(code, enum.Enum) else code
         self.detail = kwargs.get("detail")
         self.message = message
 

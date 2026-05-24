@@ -3,6 +3,17 @@ from typing import NamedTuple
 from pydantic import model_serializer
 
 
+class AppErrorCodeEnum(enum.Enum):
+    UNKNOWN_ERROR = "UNKNOWN_ERROR"
+    DUPLICATE_EMAIL = "DUPLICATE_EMAIL"
+    AUTHENTICATION_REQUIRED = "AUTHENTICATION_REQUIRED"
+    FORBIDDEN = "FORBIDDEN"
+    INVALID_CREDENTIALS = "INVALID_CREDENTIALS"
+    REGION_ERROR = "REGION_ERROR"
+    INFRASTRUCTURE_TYPE_ERROR = "INFRASTRUCTURE_TYPE_ERROR"
+    TASK_ID_TOO_SHORT = "TASK_ID_TOO_SHORT"
+    
+
 class InfrastructureTypeMeta(NamedTuple):
     emoji: str
     label: str
@@ -31,6 +42,8 @@ class InfrastructureTypeEnum(enum.Enum):
     def serialize_as_value(self) -> str:
         return self.value
 
+
+APP_ERROR_CODES: list[str] = [x.value for x in AppErrorCodeEnum]
 
 INFRASTRUCTURE_TYPE_MAP = { x.value: { "type": x.value, **x.meta._asdict() } for x in InfrastructureTypeEnum }
 INFRASTRUCTURE_TYPES = list(INFRASTRUCTURE_TYPE_MAP.values())

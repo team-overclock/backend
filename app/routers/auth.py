@@ -4,10 +4,11 @@ from fastapi import APIRouter, Depends, Request, status
 from sqlalchemy.orm import Session
 
 from ..database import get_db
-from ..schemas.error import AppError, RegionError
+from ..schemas.error import AppError
 from ..schemas.auth import LoginCheckResponse, UserCreateRequest, UserLoginRequest
 from ..schemas.user import UserInfo
 from ..dependencies import get_current_user_session
+from ..core.enums import AppErrorCodeEnum
 from ..core.exception import AppException
 from ..core import session
 from ..crud.user import create_user, get_user_by_cuid, get_user_by_email
@@ -47,7 +48,6 @@ def login_check(
     summary="회원가입",
     status_code=status.HTTP_201_CREATED,
     responses={
-        400: { "model": RegionError, "description": "지원하지 않는 동네인 경우" },
         409: { "model": AppError, "description": "이미 가입된 이메일인 경우" },
     },
 )
@@ -60,6 +60,7 @@ def signup(
     if not created:
         raise AppException(
             status_code=status.HTTP_409_CONFLICT,
+            code=AppErrorCodeEnum.DUPLICATE_EMAIL,
             message="이미 등록된 이메일입니다.",
         )
     return user
@@ -83,6 +84,7 @@ def login(
     if not user or not user.verify_password(body.password):
         raise AppException(
             status_code=status.HTTP_401_UNAUTHORIZED,
+            code=AppErrorCodeEnum.INVALID_CREDENTIALS,
             message="이메일 또는 비밀번호가 잘못되었습니다.",
         )
     session.login(request, user)

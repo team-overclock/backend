@@ -1,61 +1,64 @@
+from redis import Redis
 from fastapi import status
-from sqlalchemy.orm import Session
 
-from ..crud.service import get_regions_by_depth, get_region_by_id, get_all_infrastructure_types, get_infrastructure_by_id, get_infrastructure_by_ids
+from ..crud.service import get_region_by_id, get_regions
+from ..core.enums import AppErrorCodeEnum, INFRASTRUCTURE_TYPE_MAP, INFRASTRUCTURE_TYPES
 from ..core.exception import AppException
-from ..models import InfrastructureType
+from ..schemas.service import InfrastructureTypeItem
 
 
-def verify_region(db: Session, region_id: int, depth: int = 2):
+def verify_region(redis: Redis, region_id: int):
     """주어진 region_id가 유효한지 검증하는 함수. 유효하지 않으면 AppException을 발생시킴."""
 
-    region = get_region_by_id(db, region_id, depth)
+    region = get_region_by_id(redis, region_id)
     if not region:
-        regions = get_regions_by_depth(db, depth)
+        regions = get_regions(redis)
         raise AppException(
             status_code=status.HTTP_400_BAD_REQUEST,
+            code=AppErrorCodeEnum.REGION_ERROR,
             message="유효하지 않은 동네입니다.",
             detail={
                 "total": len(regions),
-                "items": [r.to_dict() for r in regions],
+                "items": regions,
             },
         )
     return region
 
-def verify_infrastructure_type(db: Session, infrastructure_type_id: int):
+def verify_infrastructure_type(infrastructure_type: int):
     """주어진 infrastructure_type_id가 유효한지 검증하는 함수. 유효하지 않으면 AppException을 발생시킴."""
 
-    infra = get_infrastructure_by_id(db, infrastructure_type_id)
-    if not infra:
-        infras = get_all_infrastructure_types(db)
+    if infrastructure_type not in INFRASTRUCTURE_TYPES:
         raise AppException(
             status_code=status.HTTP_400_BAD_REQUEST,
+            code=AppErrorCodeEnum.INFRASTRUCTURE_TYPE_ERROR,
             message="유효하지 않은 인프라 유형입니다.",
             detail={
-                "total": len(infras),
-                "items": [i.to_dict() for i in infras],
+                "total": len(INFRASTRUCTURE_TYPES),
+                "items": INFRASTRUCTURE_TYPES,
             },
         )
-    return infra
+    return INFRASTRUCTURE_TYPES[infrastructure_type]
 
-def verify_infrastructure_types(db: Session, infrastructure_type_ids: list[int]) -> list[InfrastructureType]:
+def verify_infrastructure_types(infrastructure_types: list[str]) -> list[InfrastructureTypeItem]:
     """
     주어진 인프라 유형 ID 목록의 중복을 제거한 후 모든 id가 유효한지 검증하는 함수.
     유효하지 않은 값이 하나라도 포함되어 있으면 AppException을 발생시킴.
     """
-    if len(infrastructure_type_ids) == 0:
+    if len(infrastructure_types) == 0:
         return []
 
-    ids = list(dict.fromkeys(infrastructure_type_ids))  # 순서를 유지한 채로 중복 제거
-    infras = get_infrastructure_by_ids(db, ids)
-    if len(infras) != len(ids):
-        infras = get_all_infrastructure_types(db)
+    types = list(dict.fromkeys(infrastructure_types))  # 순서를 유지한 채로 중복 제거
+    try:
+        infras = [INFRASTRUCTURE_TYPE_MAP[x] for x in types]
+        if len(infras) != len(types): raise
+    except:
         raise AppException(
             status_code=status.HTTP_400_BAD_REQUEST,
+            code=AppErrorCodeEnum.INFRASTRUCTURE_TYPE_ERROR,
             message="유효하지 않은 인프라 유형이 포함되어 있습니다.",
             detail={
-                "total": len(infras),
-                "items": [i.to_dict() for i in infras],
+                "total": len(INFRASTRUCTURE_TYPES),
+                "items": INFRASTRUCTURE_TYPES,
             },
         )
     return infras

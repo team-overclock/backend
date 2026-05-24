@@ -8,7 +8,8 @@ from .base import Base
 
 
 if TYPE_CHECKING:
-    from . import SearchLog
+    from ..core.enums import InfrastructureTypeEnum
+    from . import User, SearchLog
 
 class Recommendation(Base):
     """
@@ -47,3 +48,26 @@ class Recommendation(Base):
     failed_at = Column(DateTime)
 
     users: Mapped[list["SearchLog"]] = relationship("SearchLog", back_populates="recommendation", cascade="all, delete-orphan")
+
+    def add_user(
+        self,
+        user: "User",
+        name: str | None = None,
+    ):
+        """
+        해당 추천을 요청한 사용자 추가. 커밋은 하지 않음.
+        - name: 사용자 지정 추천 별칭 (선택 사항)
+        """
+        isn = SearchLog(name=name, user=user)
+        self.users.append(isn)
+        return isn
+
+    def set_infrastructure_priorities(
+        self,
+        infrastructure_types: list["InfrastructureTypeEnum | str"],
+    ) -> list[str]:
+        """
+        해당 추천의 인프라 유형 우선순위 설정. 커밋은 하지 않음.
+        """
+        self.infrastructure_priorities = [x.value if hasattr(x, "value") else x for x in infrastructure_types]
+        return self.infrastructure_priorities
