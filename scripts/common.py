@@ -5,6 +5,7 @@ from typing import TypeVar, Generator, Callable, Iterable, Literal
 
 
 SEED_TASK_ID_PREFIX = "random_seed_"
+SEED_USERNAME_PREFIX = "seed_user_"
 
 
 T = TypeVar("T")
