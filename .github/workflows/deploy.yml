@@ -1,0 +1,74 @@
+---
+name: Deploy
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/deploy.yml"
+      - ".dockerignore"
+      - "Dockerfile"
+      - "requirements.txt"
+      - "app/**"
+      # - "data/**"
+      - "root/**"
+      - "scripts/**"
+  release:
+    types:
+      - published
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Login to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Set Variables
+        id: vars
+        run: |
+          if [ "${{ github.event_name }}" != "release" ]; then
+            echo "LATEST=false" >> $GITHUB_OUTPUT
+            echo "TAGS=dev" >> $GITHUB_OUTPUT
+          else
+            echo "LATEST=true" >> $GITHUB_OUTPUT
+            echo "TAGS<<EOF" >> $GITHUB_OUTPUT
+            echo "type=semver,pattern={{version}}" >> $GITHUB_OUTPUT
+            echo "type=semver,pattern={{major}}.{{minor}}" >> $GITHUB_OUTPUT
+            echo "type=semver,pattern={{major}}" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Docker meta
+        uses: docker/metadata-action@v6
+        id: meta
+        with:
+          images: |
+            ghcr.io/${{ github.repository }}
+          tags: ${{ steps.vars.outputs.TAGS }}
+          flavor: |
+            latest=${{ steps.vars.outputs.LATEST }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v7
+        with:
+          platforms: linux/amd64,linux/arm64
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          target: prod
+          push: true
