@@ -1,0 +1,16 @@
+google drive                       : https://drive.google.com/drive/folders/1w9TUhiq_XT-wl8xMRIegWvoWW65IyxC0?usp=sharing
+
+AL_D164_                           : https://www.vworld.kr/dtmk/dtmk_ntads_s002.do?svcCde=NA&dsId=5
+
+법정동코드 전체                    : https://www.code.go.kr/stdcode/regCodeL.do
+서울시 학원 교습소정보             : https://data.seoul.go.kr/dataList/OA-20528/S/1/datasetView.do
+rnaddrkor                          : https://business.juso.go.kr/jst/jstAddressDetailsSearch
+
+서울시 공동주택 아파트 정보        : https://data.seoul.go.kr/dataList/OA-15818/S/1/datasetView.do
+
+전국초중등학교위치표준데이터       : https://www.data.go.kr/data/15021148/standard.do
+국토교통부_도시철도 전체노선       : https://www.data.go.kr/data/15122916/fileData.do
+서울시 역사마스터 정보             : https://data.seoul.go.kr/dataList/OA-21232/S/1/datasetView.do
+서울시 응급실 위치 정보            : https://data.seoul.go.kr/dataList/OA-20338/S/1/datasetView.do
+생활_대규모점포_서울특별시         : https://www.data.go.kr/data/15045013/fileData.do
+전국도시공원정보표준데이터         : https://www.data.go.kr/data/15012890/standard.do

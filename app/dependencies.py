@@ -2,13 +2,18 @@ from fastapi import Request, Depends, status
 from fastapi.exceptions import HTTPException
 from sqlalchemy.orm import Session
 
+from .core.enums import AppErrorCodeEnum
 from .core.exception import AppException
 from .core.session import get_session
 from .database import get_db
 from .models import User
 from .schemas.auth import UserSession
 from .crud.user import get_user_by_cuid
-from .crud.service import get_user_recommendations_by_user_id, get_recommendations_by_hash, get_latest_version
+from .crud.service import (
+    get_recommendations_by_user_id_and_task_id,
+    get_search_log_by_user_id_and_task_id,
+    get_search_log_by_user_id,
+)
 
 
 def get_current_user_session(request: Request):
@@ -17,6 +22,7 @@ def get_current_user_session(request: Request):
         # 세션이 없으면 401 에러를 발생시킴
         raise AppException(
             status_code=status.HTTP_401_UNAUTHORIZED,
+            code=AppErrorCodeEnum.AUTHENTICATION_REQUIRED,
             message="로그인이 필요한 서비스입니다.",
         )
     return session
@@ -39,9 +45,39 @@ def only_self_access(
         # {user_cuid}가 아닌 세션 기반인 경우에는 세션 cuid가 DB에 존재하지 않는 경우임
         raise AppException(
             status_code=status.HTTP_403_FORBIDDEN,
+            code=AppErrorCodeEnum.FORBIDDEN,
             message="접근 권한이 없습니다.",
         )
     return user
+
+def _get_current_rec_or_search_log(
+    task_id: str,
+    db: Session,
+    user: User,
+    fn: callable,
+):
+    task_id = task_id if len(task_id) >= 8 else None
+    items = fn(db, user.id, task_id, size=2) if task_id else []
+
+    ins = None
+    if len(items) == 1:
+        ins = items[0]
+    elif task_id and len(items) == 0:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+        )
+    else:  # not task_id or len(items) > 1
+        for item in items:
+            if item.task_id == task_id:
+                ins = item
+                break
+        if ins is None:
+            raise AppException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                code=AppErrorCodeEnum.TASK_ID_TOO_SHORT,
+                message="task_id 값이 너무 짧습니다.",
+            )
+    return ins
 
 def get_current_recommendation(
     task_id: str,
@@ -50,30 +86,24 @@ def get_current_recommendation(
 ):
     """
     `task_id` 값으로 시작하는 추천이 현재 세션의 사용자에게 속한 것인지 검증하는 의존성 함수.
-    - 전체 추천 중 `task_id`로 시작하는 `hash`를 가진 추천이 2개 이상이면 400 에러를 발생시킴
-    - 조회된 추천이 현재 사용자가 요청한 추천이 아니면 403 에러를 발생시킴
+    - task_id가 없거나 너무 짧거나 추천이 2개 이상 조회되면 400 에러를 발생시킴
     - 추천이 존재하지 않으면 404 에러를 발생시킴
     """
 
-    hash = task_id if len(task_id) >= 8 else None
-    items = get_recommendations_by_hash(db, task_id, size=2) if hash else []
-    if hash is None or len(items) > 1:
-        raise AppException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            message="task_id 값이 너무 짧습니다.",
-        )
-    if len(items) == 0:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-        )
+    return _get_current_rec_or_search_log(task_id, db, user, get_recommendations_by_user_id_and_task_id)
 
-    item = items[0]
-    if user.id not in [x.user_id for x in item.request_users]:
-        raise AppException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            message="접근 권한이 없습니다.",
-        )
-    return item
+def get_current_search_log(
+    task_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(only_self_access),
+):
+    """
+    `task_id` 값으로 시작하는 검색 기록이 현재 세션의 사용자에게 속한 것인지 검증하는 의존성 함수.
+    - task_id가 없거나 너무 짧거나 검색 기록이 2개 이상 조회되면 400 에러를 발생시킴
+    - 검색 기록이 존재하지 않으면 404 에러를 발생시킴
+    """
+
+    return _get_current_rec_or_search_log(task_id, db, user, get_search_log_by_user_id_and_task_id)
 
 
 def get_current_user_recommendations(
@@ -83,15 +113,4 @@ def get_current_user_recommendations(
     """
     현재 로그인된 사용자가 요청한 추천 목록을 반환하는 의존성 함수.
     """
-    return get_user_recommendations_by_user_id(db, user.id)
-
-def get_current_version(
-    db: Session = Depends(get_db),
-):
-    version = get_latest_version(db)
-    if not version:
-        raise AppException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            message="추천 생성에 필요한 버전 정보가 존재하지 않습니다.",
-        )
-    return version
+    return get_search_log_by_user_id(db, user.id)

@@ -1,6 +1,5 @@
 from sqlalchemy.orm import Session
 
-from ..core.validate import verify_region
 from ..models import User
 from ..schemas.auth import UserCreateRequest
 
@@ -11,14 +10,12 @@ def create_user(db: Session, user: UserCreateRequest):
     db_user = get_user_by_email(db, user.email)
     if not db_user:
         created = True
-        region = None if user.region_id is None else verify_region(db, user.region_id, 2)
 
         # CUID 생성, 비밀번호 암호화는 User 클래스에서 자동으로 처리되도록 함
         db_user = User(
             name=user.name,
             email=user.email,
             password=user.password,
-            region=region,
         )
         db.add(db_user)
         db.commit()

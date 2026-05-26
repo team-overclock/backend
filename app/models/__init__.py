@@ -1,13 +1,10 @@
 from .base import Base
-from .version import Version
+
 from .region import Region
 from .property import Property
-from .infrastructure_type import InfrastructureType
 from .infrastructure import Infrastructure
-from .recommendation import Recommendation
-from .recommendation_infrastructure_type_priority import RecommendationInfrastructureTypePriority
-from .recommendation_property_score import RecommendationPropertyScore
-from .recommendation_property_infrastructure_score import RecommendationPropertyInfrastructureScore
-from .property_infrastructure_score import PropertyInfrastructureScore
+from .property_infrastructure import PropertyInfrastructure
+
 from .user import User
-from .user_recommendation import UserRecommendation
+from .recommendation import Recommendation
+from .search_log import SearchLog
