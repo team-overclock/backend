@@ -65,6 +65,9 @@ docker exec -it <container_name> create-user <email> [name]
 
 ### insert-data
 
+> [!IMPORTANT]
+> [url.txt](data/url.txt) 파일 내 구글 드라이브에서 모든 파일 다운로드
+
 `data` 폴더 내 csv 파일 내 데이터를 데이터베이스에 삽입 (테이블 자동 생성)
 
 ```shell
@@ -76,11 +79,27 @@ docker exec -it <container_name> insert-data
 > [!IMPORTANT]
 > `insert-data`가 먼저 수행되어야 함
 
-데이터베이스에 랜덤 추천 데이터 삽입.
+> [!NOTE]
+> 게스트 유저는 항상 생성되며,
+> `num_of_users`에 포함되지 않음
+
+데이터베이스에 랜덤 사용자 및 추천 데이터 삽입.
 
 ```shell
-# number_of_recommendation 기본값: 30
-docker exec -it <container_name> insert-seeds [number_of_recommendation]
+# num_of_recs 기본값: 30
+# num_of_users 기본값: 0
+docker exec -it <container_name> insert-seeds [num_of_recs] [num_of_users]
+```
+
+### drop-seeds
+
+> [!NOTE]
+> 게스트 계정과 property_infrastructure 테이블 데이터는 삭제되지 않음
+
+생성된 seed 데이터 삭제.
+
+```shell
+docker exec -it <container_name> drop-seeds
 ```
 
 ### drop-tables
