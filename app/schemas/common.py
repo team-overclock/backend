@@ -8,12 +8,16 @@ def empty_to_none(v: str | None):
         return None
     return v
 
-UserName = Annotated[str, Field(min_length=1)]
-Password = Annotated[str, Field(min_length=4)]
+OptionalStr = Annotated[
+    Union[str, None],
+    BeforeValidator(empty_to_none)
+]
 OptionalEmail = Annotated[
     Union[EmailStr, None],
     BeforeValidator(empty_to_none)
 ]
+
+Password = Annotated[str, Field(min_length=4)]
 
 PK_AI = Annotated[int, Field(description="Primary Key (Auto Increment)", ge=1)]
 PK_STR = Annotated[str, Field(description="Primary Key (String)", examples=["abc123"], min_length=1)]
