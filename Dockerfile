@@ -22,7 +22,6 @@ RUN uv venv $VIRTUAL_ENV
 
 # 운영용: 빌드
 FROM prod-base AS prod-build
-RUN apk add --no-cache gdal-dev gcc g++
 COPY requirements.txt .
 RUN uv pip install --no-cache -r requirements.txt
 
@@ -40,5 +39,4 @@ WORKDIR /app/scripts
 FROM base AS dev
 ENV APP_ENV=development
 ENV PYTHONDONTWRITEBYTECODE=1
-RUN apk add --no-cache gdal-dev gcc g++
 WORKDIR /app/scripts

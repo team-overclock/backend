@@ -23,6 +23,11 @@
 
 ## 설치
 
+> [!NOTE]
+> `requirements-dev.txt` 파일 지정 시
+> [테스트](#테스트) 및 [insert-data](#insert-data)
+> 작업에 사용되는 라이브러리까지 같이 설치됨
+
 나열된 목록을 한 번에 설치
 
 ```shell
@@ -54,7 +59,7 @@ fastapi dev app
 
 내장 명령어 목록 및 설명
 
-### create-user
+### create user
 
 데이터베이스에 사용자 추가
 
@@ -63,7 +68,11 @@ fastapi dev app
 docker exec -it <container_name> create-user <email> [name]
 ```
 
-### insert-data
+### insert data
+
+> [!IMPORTANT]
+> 도커 이미지 경량화를 위해 제거되었으며,
+> 파이썬으로 직접 파일을 실행할 수 있습니다.
 
 > [!IMPORTANT]
 > [url.txt](data/url.txt) 파일 내 구글 드라이브에서 모든 파일 다운로드
@@ -71,10 +80,11 @@ docker exec -it <container_name> create-user <email> [name]
 `data` 폴더 내 csv 파일 내 데이터를 데이터베이스에 삽입 (테이블 자동 생성)
 
 ```shell
-docker exec -it <container_name> insert-data
+python3 scripts/insert_data.py
+# docker exec -it <container_name> insert-data  # deprecated
 ```
 
-### insert-seeds
+### insert seeds
 
 > [!IMPORTANT]
 > `insert-data`가 먼저 수행되어야 함
@@ -88,10 +98,13 @@ docker exec -it <container_name> insert-data
 ```shell
 # num_of_recs 기본값: 30
 # num_of_users 기본값: 0
+
+python3 scripts/insert_seeds.py [num_of_recs] [num_of_users]
+# or
 docker exec -it <container_name> insert-seeds [num_of_recs] [num_of_users]
 ```
 
-### drop-seeds
+### drop seeds
 
 > [!NOTE]
 > 게스트 계정과 property_infrastructure 테이블 데이터는 삭제되지 않음
@@ -99,21 +112,25 @@ docker exec -it <container_name> insert-seeds [num_of_recs] [num_of_users]
 생성된 seed 데이터 삭제.
 
 ```shell
+python3 scripts/drop_seeds.py
+# or
 docker exec -it <container_name> drop-seeds
 ```
 
-### drop-tables
+### drop tables
 
 데이블 삭제
 
 ```shell
+python3 scripts/drop_tables.py [-y|--yes]
+# or
 docker exec -it <container_name> drop-tables [-y|--yes]
 ```
 
 연결된 데이터베이스의 모든 테이블 삭제.
 `-y` 또는 `--yes` 입력 시 삭제 여부를 묻지 않고 즉시 삭제함.
 
-### drop-to-seeds
+### drop to seeds
 
 `drop-tables`, `insert-data`, `insert-seeds`를 연속으로 실행하는 스크립트
 

@@ -3,7 +3,7 @@ name: Deploy
 
 on:
   workflow_dispatch:
-  push:
+  push: &trigger
     branches:
       - main
     paths:
@@ -12,9 +12,9 @@ on:
       - "Dockerfile"
       - "requirements.txt"
       - "app/**"
-      # - "data/**"
       - "root/**"
       - "scripts/**"
+  pull_request: *trigger
   release:
     types:
       - published
@@ -71,4 +71,6 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           target: prod
-          push: true
+
+          # pr에서는 테스트용이기 때문에 push하지 않음 (dry-run)
+          push: ${{ github.event_name != 'pull_request' }}
