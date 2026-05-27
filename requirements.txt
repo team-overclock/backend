@@ -1,8 +1,6 @@
 fastapi[standard]
 itsdangerous
 scalar-fastapi
-pytest
-pytest-cov
 sqlalchemy          
 geoalchemy2
 pymysql             
@@ -10,4 +8,3 @@ argon2-cffi
 python-dotenv  
 cuid2
 redis
-geopandas

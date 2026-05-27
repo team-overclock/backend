@@ -12,7 +12,6 @@ on:
       - "Dockerfile"
       - "requirements.txt"
       - "app/**"
-      # - "data/**"
       - "root/**"
       - "scripts/**"
   release:
