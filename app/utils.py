@@ -62,6 +62,26 @@ def get_files(
                 yield from get_files(str(path), extensions=extensions, recursive=recursive)
 
 
+def read_file(file_path: str, *, strip: bool = False) -> str | None:
+    try:
+        enc = sniff_encoding(file_path)
+        with open(file_path, encoding=enc) as f:
+            content = f.read()
+            if strip: content = content.strip()
+            return content
+    except:
+        pass
+
+def write_file(file_path: str, content: str, *, encoding: str | None = None, append: bool = False) -> None:
+    if not encoding and Path(file_path).exists():
+        encoding = sniff_encoding(file_path)
+    elif not encoding:
+        encoding = "utf-8"
+
+    with open(file_path, mode="a" if append else "w", encoding=encoding) as f:
+        f.write(content)
+
+
 def progress(
     msg: str,
     current: int,
