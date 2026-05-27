@@ -18,8 +18,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from app.database import SessionLocal, engine
 from app.models import Base, Region, Property, Infrastructure
+from app.utils import parse_int, parse_float, run_with_progress, get_files
 
-from scripts.common import parse_int, parse_float, run_with_progress, get_files
 from scripts.csv_parser import read_csv_file
 from scripts.df_parser import read_pandas, read_shp_file
 

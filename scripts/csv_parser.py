@@ -1,7 +1,7 @@
 import csv
 from typing import TextIO, Generator
 
-from scripts.common import sniff_encoding
+from app.utils import sniff_encoding
 
 
 def iter_from_header(f: TextIO) -> Generator[str, None, None]:

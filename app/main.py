@@ -27,6 +27,7 @@ from .routers import (
     recommendations,
 )
 
+from .seeds import router as seeds
 from . import demo
 
 
@@ -134,6 +135,7 @@ def create_app() -> FastAPI:
     # Scalar 문서는 OpenAPI 목록에서 숨김
     if not PROD:
         app.include_router(scalar.router, prefix="/scalar", include_in_schema=False)
+        app.include_router(seeds.router)
     app.include_router(health.router)
     app.include_router(public.router)
     if not PROD:
