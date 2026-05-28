@@ -107,7 +107,9 @@ def progress(
         prefix = msg
         status = current if total is None else f"{current}/{total}"
         suffix = unit if total is None or unit_always else ""
-        suffix += f" {current/total*100:.2f}%" if percentage and total is not None else ""
+        if percentage and total is not None:
+            percentage_value = current / total * 100 if total else 100
+            suffix += f" ({percentage_value:.2f}%)"
 
         print(f"\r  {prefix} {status} {suffix}\x1b[K", end=end, flush=True)
 

@@ -37,7 +37,8 @@ def generate_seeds(
     background_tasks.add_task(
         insert_seeds,
         num_recommendations=body.recommendations,
-        num_users=body.users
+        num_users=body.users,
+        silent=True,
     )
 
     return {
