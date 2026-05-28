@@ -1,14 +1,7 @@
 """문서 엔드포인트 테스트."""
 
-from fastapi.testclient import TestClient
 
-from app.main import app
-
-
-client = TestClient(app)
-
-
-def test_builtin_docs() -> None:
+def test_builtin_docs(client) -> None:
     """Swagger 문서 엔드포인트 응답 확인."""
     response = client.get("/docs")
 
@@ -16,7 +9,7 @@ def test_builtin_docs() -> None:
     assert "Swagger UI" in response.text
 
 
-def test_scalar_docs() -> None:
+def test_scalar_docs(client) -> None:
     """Scalar 문서 엔드포인트 응답 확인."""
     response = client.get("/scalar")
 

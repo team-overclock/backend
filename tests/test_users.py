@@ -1,6 +1,5 @@
 """사용자(users) 라우터 엔드포인트 테스트."""
 
-import pytest
 from unittest.mock import MagicMock, patch
 from app.models import User
 
