@@ -50,14 +50,14 @@ fastapi dev app
 # 또는 python3 -m fastapi dev app
 ```
 
-## Docker
+## scripts
 
 > [!NOTE]
 > 도커 컨테이너 실행 방법은
 > [team-overclock/monorepo#docker](https://github.com/team-overclock/monorepo#docker)
 > 참고
 
-내장 명령어 목록 및 설명
+scripts 폴더 내 실행 가능한 스크립트 파일 목록 및 설명
 
 ### create user
 
@@ -68,14 +68,19 @@ fastapi dev app
 docker exec -it <container_name> create-user <email> [name]
 ```
 
+### download data
+
+구글 드라이브 [공유폴더](https://drive.google.com/drive/folders/1w9TUhiq_XT-wl8xMRIegWvoWW65IyxC0?usp=sharing)
+내 데이터 다운로드
+
+```shell
+python3 scripts/download_data.py
+```
+
 ### insert data
 
 > [!IMPORTANT]
-> 도커 이미지 경량화를 위해 제거되었으며,
-> 파이썬으로 직접 파일을 실행할 수 있습니다.
-
-> [!IMPORTANT]
-> [url.txt](data/url.txt) 파일 내 구글 드라이브에서 모든 파일 다운로드
+> `download data`를 먼저 실행하거나 직접 다운로드 필요
 
 `data` 폴더 내 csv 파일 내 데이터를 데이터베이스에 삽입 (테이블 자동 생성)
 
@@ -87,7 +92,7 @@ python3 scripts/insert_data.py
 ### insert seeds
 
 > [!IMPORTANT]
-> `insert-data`가 먼저 수행되어야 함
+> `insert data`가 먼저 수행되어야 함
 
 > [!NOTE]
 > 게스트 유저는 항상 생성되며,
@@ -132,10 +137,11 @@ docker exec -it <container_name> drop-tables [-y|--yes]
 
 ### drop to seeds
 
-`drop-tables`, `insert-data`, `insert-seeds`를 연속으로 실행하는 스크립트
+`drop tables`, `insert data`, `insert seeds`를 연속으로 실행하는 스크립트
 
 ```shell
-docker exec -it <container_name> drop-to-seeds
+python3 scripts/drop_to_seeds.py [num_of_recs] [num_of_users]
+# docker exec -it <container_name> drop-to-seeds  # deprecated
 ```
 
 ## 테스트

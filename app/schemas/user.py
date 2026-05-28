@@ -1,7 +1,7 @@
 from pydantic import BaseModel, EmailStr, Field
 from datetime import datetime
 
-from .common import PK_STR, Password, OptionalEmail
+from .common import PK_STR, Password, OptionalStr, OptionalEmail
 
 
 class UserInfo(BaseModel):
@@ -12,7 +12,7 @@ class UserInfo(BaseModel):
 
 
 class UserInfoUpdateRequest(BaseModel):
-    name: str | None = None
+    name: OptionalStr = None
     email: OptionalEmail = None
 
 class UserPasswordChangeRequest(BaseModel):

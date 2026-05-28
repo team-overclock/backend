@@ -50,7 +50,7 @@ def fetch_regions(redis: Redis, hkey: str, sort: bool = True, **extra_dict):
     if sort: result.sort(key=lambda x: x["id"])
     return result
 
-def get_regions(redis: Redis, include_depth: bool = True):
+def get_regions(redis: Redis, include_depth: bool = True) -> list[dict]:
     """모든 동네 목록을 반환하는 함수"""
     if not include_depth:
         return fetch_regions(redis, REGIONS_ALL_KEY)
@@ -64,7 +64,7 @@ def get_regions(redis: Redis, include_depth: bool = True):
         items.sort(key=lambda x: x["id"])
         return items
 
-def get_region_by_id(redis: Redis, region_id: int):
+def get_region_by_id(redis: Redis, region_id: int) -> dict | None:
     """주어진 id에 해당하는 동네를 반환하는 함수"""
     value = redis.hget(REGIONS_ALL_KEY, region_id)
     if value is None:

@@ -62,6 +62,26 @@ def get_files(
                 yield from get_files(str(path), extensions=extensions, recursive=recursive)
 
 
+def read_file(file_path: str, *, strip: bool = False) -> str | None:
+    try:
+        enc = sniff_encoding(file_path)
+        with open(file_path, encoding=enc) as f:
+            content = f.read()
+            if strip: content = content.strip()
+            return content
+    except:
+        pass
+
+def write_file(file_path: str, content: str, *, encoding: str | None = None, append: bool = False) -> None:
+    if not encoding and Path(file_path).exists():
+        encoding = sniff_encoding(file_path)
+    elif not encoding:
+        encoding = "utf-8"
+
+    with open(file_path, mode="a" if append else "w", encoding=encoding) as f:
+        f.write(content)
+
+
 def progress(
     msg: str,
     current: int,
@@ -69,6 +89,10 @@ def progress(
     total: int | None = None,
     is_final: bool | None = None,
     eol: Literal["\n", "\r\n"] = linesep,
+    silent: bool = False,
+    unit: str = "items",
+    unit_always: bool = False,
+    percentage: bool = True,
 ) -> None:
     """
     한 줄을 지우고 진행률을 출력합니다. 마지막이면 개행합니다.
@@ -76,9 +100,16 @@ def progress(
     - `\\x1b[K`로 커서 위치부터 라인 끝까지 지워 남은 글자 문제를 해결합니다.
     """
 
-    is_final = current == total if is_final is None else is_final
-    end = eol if is_final else ""
-    print(f"\r  {msg} {current}{' items' if total is None else f'/{total}'}\x1b[K", end=end, flush=True)
+    if not silent:
+        is_final = current == total if is_final is None else is_final
+        end = eol if is_final else ""
+
+        prefix = msg
+        status = current if total is None else f"{current}/{total}"
+        suffix = unit if total is None or unit_always else ""
+        suffix += f" {current/total*100:.2f}%" if percentage and total is not None else ""
+
+        print(f"\r  {prefix} {status} {suffix}\x1b[K", end=end, flush=True)
 
 
 def parse_int(value: str | None) -> int | None:
@@ -123,6 +154,7 @@ def run_with_progress(
     total: int | None = None,
     interval: int = 1,
     eol: Literal["\n", "\r\n"] = linesep,
+    silent: bool = False,
 ) -> list[R]:
     """
     작업을 수행하면서 진행 상황을 터미널에 출력합니다.
@@ -133,17 +165,22 @@ def run_with_progress(
     :param total: 총 반복 횟수, items이 시퀀스인 경우 자동 탐지
     :param interval: 진행률을 갱신할 주기 (기본값: 1)
     :param eol: 작업 완료 후 개행 문자
+    :param silent: True로 설정하면 진행률 출력 없이 조용히 실행
     """
 
-    has_len = hasattr(items, "__len__")
-    if has_len and total is None:
-        total = len(items)
-
-    idx = -1
     results = []
-    for idx, item in enumerate(items):
-        if idx == 0 or idx % interval == 0:
-            progress(msg, idx, total=total)
-        results.append(callback(idx, item))
-    progress(msg, idx + 1, total=total, is_final=True, eol=eol)
+    if silent:
+        for idx, item in enumerate(items):
+            results.append(callback(idx, item))
+    else:
+        has_len = hasattr(items, "__len__")
+        if has_len and total is None:
+            total = len(items)
+
+        idx = -1
+        for idx, item in enumerate(items):
+            if idx == 0 or idx % interval == 0:
+                progress(msg, idx, total=total)
+            results.append(callback(idx, item))
+        progress(msg, idx + 1, total=total, is_final=True, eol=eol)
     return results

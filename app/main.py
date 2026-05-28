@@ -4,10 +4,13 @@ import os
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, APIRouter, Request, Depends
 from fastapi.responses import JSONResponse
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
+from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.sessions import SessionMiddleware
 
+from .config import PROD, ALLOWED_HOSTS, TRUSTED_HOSTS
 from .models import Base
 from .redis import redis
 from .database import engine, SessionLocal
@@ -24,6 +27,7 @@ from .routers import (
     recommendations,
 )
 
+from .seeds import router as seeds
 from . import demo
 
 
@@ -53,10 +57,20 @@ def create_app() -> FastAPI:
     """FastAPI 앱 생성 및 라우터를 등록 후 반환."""
     app = FastAPI(
         title="fastapi",
-        docs_url="/docs",
+        docs_url=None if PROD else "/docs",
         redoc_url="/redoc",
         redirect_slashes=False,
         lifespan=lifespan,
+    )
+
+    app.add_middleware(
+        TrustedHostMiddleware,
+        allowed_hosts=ALLOWED_HOSTS,
+    )
+
+    app.add_middleware(
+        ProxyHeadersMiddleware,
+        trusted_hosts=TRUSTED_HOSTS,
     )
 
     app.add_middleware(
@@ -73,7 +87,7 @@ def create_app() -> FastAPI:
         secret_key=os.getenv("SECRET_KEY", "x"),
         session_cookie="session",
         same_site="lax",                                  # CSRF 방어
-        https_only=os.getenv("APP_ENV") == "production",  # 운영 모드에서만 True
+        https_only=PROD,                                  # 운영 모드에서만 True
         max_age=60 * 60 * 24,                             # 1일 동안 세션 유지
     )
 
@@ -119,10 +133,13 @@ def create_app() -> FastAPI:
         )
 
     # Scalar 문서는 OpenAPI 목록에서 숨김
-    app.include_router(scalar.router, prefix="/scalar", include_in_schema=False)
+    if not PROD:
+        app.include_router(scalar.router, prefix="/scalar", include_in_schema=False)
+        app.include_router(seeds.router)
     app.include_router(health.router)
     app.include_router(public.router)
-    app.include_router(demo.router)
+    if not PROD:
+        app.include_router(demo.router)
     app.include_router(auth.router)
     require_auth(users.router)
     require_auth(recommendations.router)

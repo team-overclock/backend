@@ -1,6 +1,6 @@
 from pydantic import BaseModel, EmailStr
 
-from .common import PK_STR, UserName, Password
+from .common import PK_STR, OptionalStr, Password
 from .user import UserInfo
 
 
@@ -15,7 +15,7 @@ class UserLoginRequest(BaseModel):
 
 
 class UserCreateRequest(BaseModel):
-    name: UserName | None = None
+    name: OptionalStr = None
     email: EmailStr
     password: Password
 

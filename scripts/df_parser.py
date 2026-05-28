@@ -1,7 +1,7 @@
 import pandas as pd
 import geopandas as gpd
 
-from scripts.common import sniff_encoding
+from app.utils import sniff_encoding
 
 
 def read_pandas(

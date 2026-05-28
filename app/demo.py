@@ -17,7 +17,7 @@ load_dotenv()
 
 GUEST_LOGIN_ENABLE = (os.getenv("GUEST_LOGIN_ENABLE") or "false").lower() == "true"
 GUEST_EMAIL = os.getenv("GUEST_EMAIL") or "guest@example.com"
-GUEST_USERNAME = os.getenv("GUEST_USERNAME")
+GUEST_USERNAME = os.getenv("GUEST_USERNAME") or None
 GUEST_PASSWORD = os.getenv("GUEST_PASSWORD") or "guest"
 
 
