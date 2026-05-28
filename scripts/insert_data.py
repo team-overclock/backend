@@ -1124,7 +1124,7 @@ def _main(db: Session, target_files: list[str]):
         run_with_progress(items, f"[{model.__tablename__}]", run, interval=PROGRESS_PRINT)
 
 
-def main(directory_path: str):
+def main(directory_path: str | None = None):
     """
     디렉토리 내의 CSV 파일을 읽어 데이터를 데이터베이스에 삽입하는 메인 함수입니다.
 
@@ -1134,17 +1134,17 @@ def main(directory_path: str):
         None
     """
 
+    folder = Path(directory_path) if directory_path else Path(__file__).resolve().parent.parent / "data"
+
     Base.metadata.create_all(bind=engine)
     db = SessionLocal()
     try:
-        path = Path(directory_path)
-        
-        if not path.is_dir():
-            print(f"폴더가 아닙니다: {directory_path}")
+        if not folder.is_dir():
+            print(f"폴더가 아닙니다: {str(folder)}")
             return
         
         files = list(get_files(
-            directory_path,
+            str(folder),
             extensions=[".csv", ".txt", ".shp"],
             recursive=True,
         ))
@@ -1170,5 +1170,4 @@ if __name__ == "__main__":
         usage()
         sys.exit(1)
     else:
-        data_dir = Path(__file__).resolve().parent.parent / "data"
-        main(str(data_dir))
+        main()

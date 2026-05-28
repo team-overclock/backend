@@ -26,11 +26,15 @@ if __name__ == "__main__":
         usage()
         sys.exit(1)
 
+    try:
+        args = [int(arg) for arg in sys.argv[1:]]
+    except:
+        usage()
+        sys.exit(1)
+
     from app.seeds.insert import run as insert_seeds
     try:
-        num_recs = int(sys.argv[1]) if len(sys.argv) >= 2 else DEFAULT_INSERT_SEED_RECOMMENDATIONS
-        num_users = int(sys.argv[2]) if len(sys.argv) >= 3 else DEFAULT_INSERT_SEED_USERS
-        insert_seeds(num_recs, num_users)
+        insert_seeds(*args)
     except Exception as e:
         print("시드 데이터 삽입 중 오류가 발생했습니다.")
         raise e

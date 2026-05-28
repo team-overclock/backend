@@ -70,6 +70,9 @@ def progress(
     is_final: bool | None = None,
     eol: Literal["\n", "\r\n"] = linesep,
     silent: bool = False,
+    unit: str = "items",
+    unit_always: bool = False,
+    percentage: bool = True,
 ) -> None:
     """
     한 줄을 지우고 진행률을 출력합니다. 마지막이면 개행합니다.
@@ -80,7 +83,13 @@ def progress(
     if not silent:
         is_final = current == total if is_final is None else is_final
         end = eol if is_final else ""
-        print(f"\r  {msg} {current}{' items' if total is None else f'/{total}'}\x1b[K", end=end, flush=True)
+
+        prefix = msg
+        status = current if total is None else f"{current}/{total}"
+        suffix = unit if total is None or unit_always else ""
+        suffix += f" {current/total*100:.2f}%" if percentage and total is not None else ""
+
+        print(f"\r  {prefix} {status} {suffix}\x1b[K", end=end, flush=True)
 
 
 def parse_int(value: str | None) -> int | None:
