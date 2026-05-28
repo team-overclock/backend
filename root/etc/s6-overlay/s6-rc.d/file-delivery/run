@@ -1,0 +1,7 @@
+#!/usr/bin/with-contenv bash
+
+if [ "$MODE" == "local" ] || [ -d "/app/app" ]; then
+	exit 0
+fi
+
+mv /defaults/* /app

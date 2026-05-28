@@ -1,3 +1,5 @@
 #!/usr/bin/with-contenv bash
 
-lsiown abc:abc "$HOME"/.cache
+if [ "$MODE" != "local" ]; then
+	chown abc:abc -R /app
+fi

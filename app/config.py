@@ -7,7 +7,7 @@ def parse_comma_separated(key: str, default_value: str):
 	return items
 
 
-MODE = os.getenv("APP_ENV") or "development"
+MODE = os.getenv("MODE") or "development"
 """애플리케이션 실행 모드"""
 
 PROD = MODE == "production"

@@ -1,10 +1,12 @@
 #!/usr/bin/with-contenv bash
 
+source "/app/scripts/functions.sh"
+
 cd /app
 
-echo "**** Starting app ****"
+SUCCESS "**** Starting app ****"
 
-if [ "$NODE_ENV" != "production" ]; then
+if [ "$MODE" != "production" ]; then
 	exec s6-setuidgid abc fastapi dev app --host 0.0.0.0
 else
 	exec s6-setuidgid abc fastapi run app --host 0.0.0.0
