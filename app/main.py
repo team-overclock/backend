@@ -4,11 +4,13 @@ import os
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, APIRouter, Request, Depends
 from fastapi.responses import JSONResponse
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
+from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.sessions import SessionMiddleware
 
-from .config import PROD
+from .config import PROD, ALLOWED_HOSTS, TRUSTED_HOSTS
 from .models import Base
 from .redis import redis
 from .database import engine, SessionLocal
@@ -58,6 +60,16 @@ def create_app() -> FastAPI:
         redoc_url="/redoc",
         redirect_slashes=False,
         lifespan=lifespan,
+    )
+
+    app.add_middleware(
+        TrustedHostMiddleware,
+        allowed_hosts=ALLOWED_HOSTS,
+    )
+
+    app.add_middleware(
+        ProxyHeadersMiddleware,
+        trusted_hosts=TRUSTED_HOSTS,
     )
 
     app.add_middleware(
