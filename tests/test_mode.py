@@ -26,8 +26,8 @@ def test_dev_only_routes_blocked_in_production(client) -> None:
         response_scalar = client.get("/scalar")
         assert response_scalar.status_code == 404
 
-        response_seeds = client.get("/seeds")
-        assert response_seeds.status_code == 404
+        response_manage = client.get("/manage/seeds")
+        assert response_manage.status_code == 404
 
         response_guest = client.get("/auth/guest")
         assert response_guest.status_code == 404
@@ -50,7 +50,8 @@ def test_dev_only_routes_allowed_in_development() -> None:
         assert response_scalar.status_code == 200
 
 
-        # 2. 접근 허용 (존재하지 않는 메소드 요청으로 405 Method Not Allowed 반환하여 라우터 마운트 상태 확인)
-    
-        response_seeds = client.get("/seeds")
-        assert response_seeds.status_code == 405
+        # 2. 접근 허용
+
+        # 존재하지 않는 메소드 요청으로 405 Method Not Allowed 반환하여 라우터 마운트 상태 확인
+        response_manage = client.get("/manage/seeds")
+        assert response_manage.status_code == 405
