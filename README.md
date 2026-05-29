@@ -25,8 +25,7 @@
 
 > [!NOTE]
 > `requirements-dev.txt` 파일 지정 시
-> [테스트](#테스트) 및 [insert-data](#insert-data)
-> 작업에 사용되는 라이브러리까지 같이 설치됨
+> [테스트](#테스트) 시 사용되는 라이브러리까지 같이 설치됨
 
 나열된 목록을 한 번에 설치
 
@@ -86,7 +85,8 @@ python3 scripts/download_data.py
 
 ```shell
 python3 scripts/insert_data.py
-# docker exec -it <container_name> insert-data  # deprecated
+# or
+docker exec -it <container_name> insert-data
 ```
 
 ### insert seeds
@@ -141,7 +141,8 @@ docker exec -it <container_name> drop-tables [-y|--yes]
 
 ```shell
 python3 scripts/drop_to_seeds.py [num_of_recs] [num_of_users]
-# docker exec -it <container_name> drop-to-seeds  # deprecated
+# or
+docker exec -it <container_name> drop-to-seeds
 ```
 
 ## 테스트

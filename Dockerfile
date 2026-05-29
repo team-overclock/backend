@@ -22,6 +22,9 @@ RUN uv venv "$VIRTUAL_ENV"
 
 # 배포용: 빌드
 FROM deploy-base AS deploy-build
+ENV CC=clang
+ENV CXX=clang++
+RUN apk add --no-cache gdal-dev clang compiler-rt
 COPY requirements.txt .
 RUN uv pip install --link-mode=copy --no-cache -r requirements.txt
 
@@ -48,6 +51,9 @@ ENV MODE=development
 # 로컬 개발용 이미지
 FROM base AS local
 ENV MODE=local
+ENV CC=clang
+ENV CXX=clang++
+RUN apk add --no-cache gdal-dev clang compiler-rt
 COPY root/ /
 VOLUME /venv
 WORKDIR /app

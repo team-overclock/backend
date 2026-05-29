@@ -2,10 +2,29 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 
+class ImmediateResponse(BaseModel):
+    """즉시 실행 응답"""
+
+    success: bool
+
 class BackgroundSuccessResponse(BaseModel):
     """백그라운드 실행 성공 응답"""
 
     requested: Literal[True]
+
+
+class DataDownloadStatusResponse(BaseModel):
+    """데이터 상태 조회 응답"""
+
+    curr_version: str | None
+    downloading_version: str | None
+
+class DataInsertStatusResponse(BaseModel):
+    """데이터 상태 조회 응답"""
+
+    has_region: bool
+    has_property: bool
+    has_infrastructure: bool
 
 
 class GenerateSeedsRequest(BaseModel):

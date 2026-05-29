@@ -1,3 +1,5 @@
+#!/usr/bin/with-contenv python3
+
 import os
 import sys
 import time
@@ -35,11 +37,11 @@ if __name__ == "__main__":
         sys.exit(1)
 
     from scripts import drop_tables, insert_data
-    from app.seeds.insert import run as insert_seeds
+    from app.manage import seeds
     try:
         drop_tables.main(force=True)
         insert_data.main()
-        insert_seeds(*args)
+        seeds.insert(*args)
     except Exception as e:
         print("작업 중 오류가 발생했습니다.")
         raise e

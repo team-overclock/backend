@@ -8,7 +8,7 @@ from ...config import SEED_USERNAME_PREFIX, SEED_TASK_ID_PREFIX
 from ...database import get_db
 from ...models import User, Recommendation
 
-from ..schemas import BackgroundSuccessResponse, GenerateSeedsRequest, SeedsStatusResponse
+from ..schemas import ImmediateResponse, BackgroundSuccessResponse, GenerateSeedsRequest, SeedsStatusResponse
 from .insert import run as insert_seeds
 from .drop import run as drop_seeds
 
@@ -41,22 +41,23 @@ def generate_seeds(
 @router.delete(
     "",
     summary="시드 데이터 삭제",
-    status_code=status.HTTP_202_ACCEPTED,
+    status_code=status.HTTP_200_OK,
 )
 def delete_seeds(
-    background_tasks: BackgroundTasks,
-) -> BackgroundSuccessResponse:
+) -> ImmediateResponse:
     """
     랜덤 시드 데이터 삭제.
     단, property-infra 사이 점수 등 데이터는 삭제되지 않음.
     """
 
-    background_tasks.add_task(
-        drop_seeds,
-    )
+    try:
+        drop_seeds()
+        success = True
+    except:
+        success = False
 
     return {
-        "requested": True,
+        "success": success,
     }
 
 @router.get(

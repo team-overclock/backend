@@ -8,3 +8,5 @@ argon2-cffi
 python-dotenv  
 cuid2
 redis
+geopandas
+gdown

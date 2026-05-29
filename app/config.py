@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 
 
 def parse_comma_separated(key: str, default_value: str):
@@ -26,3 +27,13 @@ SEED_USERNAME_PREFIX = "seed_user_"
 
 DEFAULT_INSERT_SEED_RECOMMENDATIONS = 30
 DEFAULT_INSERT_SEED_USERS = 0
+
+
+
+DATA_DIR = Path(__file__).resolve().parent.parent / "data"
+DATA_BACKUP_DIR = DATA_DIR / ".backup"
+DATA_DOWNLOADING_DIR = DATA_DIR / ".downloading"
+DATA_DOWNLOADING_VERSION_FILE = DATA_DOWNLOADING_DIR / ".version"
+DATA_VERSION_FILE = str(DATA_DIR / "version.txt")
+DATA_VERSION_TEMP_FILE = str(DATA_DIR / ".version.tmp")
+DATA_URL_FILE = str(DATA_DIR / "url.txt")
