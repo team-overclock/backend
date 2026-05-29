@@ -8,8 +8,19 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 
 def usage():
-    print("사용법: python drop-seeds.py [-y|--yes]")
+    print("사용법: python drop_seeds.py [-y|--yes]")
     print("  - 모든 시드 데이터를 삭제합니다.")
+
+
+def main():
+    try:
+        from app.manage import seeds
+        seeds.drop()
+    except Exception as e:
+        print("시드 데이터 삭제 중 오류가 발생했습니다.")
+        raise e
+    else:
+        print("모든 시드 데이터가 삭제되었습니다.")
 
 
 if __name__ == "__main__":
@@ -26,11 +37,4 @@ if __name__ == "__main__":
             print("작업이 취소되었습니다.")
             sys.exit(0)
 
-    from app.seeds.drop import run as drop_seeds
-    try:
-        drop_seeds()
-    except Exception as e:
-        print("시드 데이터 삭제 중 오류가 발생했습니다.")
-        raise e
-    else:
-        print("모든 시드 데이터가 삭제되었습니다.")
+    main()

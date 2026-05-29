@@ -2,13 +2,13 @@ import random
 from sqlalchemy.orm import Session
 from datetime import datetime, timedelta
 
-from ..core.enums import INFRASTRUCTURE_TYPE_VALUES
-from ..redis import redis
-from ..database import SessionLocal
-from ..demo import create_guest_user
-from ..crud.service import get_regions
-from ..utils import run_with_progress
-from ..models import (
+from ...core.enums import INFRASTRUCTURE_TYPE_VALUES
+from ...redis import redis
+from ...database import SessionLocal
+from ...demo import create_guest_user
+from ...crud.service import get_regions
+from ...utils import run_with_progress
+from ...models import (
     User,
     SearchLog,
     Recommendation,
@@ -17,7 +17,7 @@ from ..models import (
     PropertyInfrastructure,
 )
 
-from ..config import (
+from ...config import (
     SEED_TASK_ID_PREFIX,
     SEED_USERNAME_PREFIX,
     DEFAULT_INSERT_SEED_RECOMMENDATIONS,

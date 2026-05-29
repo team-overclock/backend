@@ -1,6 +1,6 @@
-from ..database import SessionLocal
-from ..models import User, Recommendation
-from ..config import SEED_TASK_ID_PREFIX, SEED_USERNAME_PREFIX
+from ...database import SessionLocal
+from ...models import User, Recommendation
+from ...config import SEED_TASK_ID_PREFIX, SEED_USERNAME_PREFIX
 
 
 def run():

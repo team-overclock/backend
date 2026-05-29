@@ -32,9 +32,9 @@ if __name__ == "__main__":
         usage()
         sys.exit(1)
 
-    from app.seeds.insert import run as insert_seeds
+    from app.manage import seeds
     try:
-        insert_seeds(*args)
+        seeds.insert(*args)
     except Exception as e:
         print("시드 데이터 삽입 중 오류가 발생했습니다.")
         raise e
