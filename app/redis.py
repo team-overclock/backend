@@ -13,14 +13,14 @@ redis_pass = os.getenv("REDIS_PASS")
 redis_db = os.getenv("REDIS_DB") or "0"
 
 redis = Redis(
-	host=redis_host,
-	port=redis_port,
-	username=quote_plus(redis_user) if redis_user else None,
-	password=quote_plus(redis_pass) if redis_pass else None,
-	db=redis_db,
-	encoding="utf-8",
-	decode_responses=True,
+    host=redis_host,
+    port=redis_port,
+    username=quote_plus(redis_user) if redis_user else None,
+    password=quote_plus(redis_pass) if redis_pass else None,
+    db=redis_db,
+    encoding="utf-8",
+    decode_responses=True,
 )
 
 def get_redis():
-	yield redis
+    yield redis

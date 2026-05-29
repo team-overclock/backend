@@ -1,17 +1,37 @@
 #!/usr/bin/with-contenv bash
 
+source "/app/scripts/functions.sh"
+
 cd /app
 
-if [ "$APP_ENV" != "production" ]; then
-	echo "**** Installing dependencies... ****"
-
-	if [ ! -f "requirements.txt" ]; then
-		echo "Error: requirements.txt not found" >&2
-		exit 1
-	fi
-
-	if [ ! -f "$VIRTUAL_ENV/bin/activate" ]; then
-		uv venv "$VIRTUAL_ENV"
-	fi
-	uv pip install --no-cache -r requirements.txt
+if [ "$MODE" == "production" ]; then
+	exit 0
 fi
+
+
+
+if [ -f ".requirements.lock" ] \
+&& [ -f "$VIRTUAL_ENV/.requirements.lock" ] \
+&& diff .requirements.lock "$VIRTUAL_ENV/.requirements.lock" > /dev/null \
+&& sha256sum -c .requirements.lock --quiet 2> /dev/null \
+; then
+	INFO "Skipping dependency installation, requirements.txt has not changed."
+	exit 0
+fi
+
+
+
+SUCCESS "**** Installing dependencies... ****"
+
+if [ ! -f "requirements.txt" ]; then
+	ERROR "Error: requirements.txt not found" >&2
+	exit 1
+fi
+
+if [ ! -f "$VIRTUAL_ENV/bin/activate" ]; then
+	uv venv "$VIRTUAL_ENV"
+fi
+
+uv pip install --link-mode=copy --no-cache -r requirements.txt
+sha256sum requirements.txt > .requirements.lock
+cp .requirements.lock "$VIRTUAL_ENV/.requirements.lock"

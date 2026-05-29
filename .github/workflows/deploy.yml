@@ -63,6 +63,13 @@ jobs:
           tags: ${{ steps.vars.outputs.TAGS }}
           flavor: |
             latest=${{ steps.vars.outputs.LATEST }}
+          labels: |
+            maintainer="me@zuni.kim"
+            org.opencontainers.image.authors="me@zuni.kim"
+            org.opencontainers.image.vendor="Team Overclock"
+            org.opencontainers.image.title="Lifemap backend API server"
+            org.opencontainers.image.documentation="${{ github.server_url }}/${{ github.repository }}"
+            org.opencontainers.image.ref.name="${{ github.ref_name }}"
 
       - name: Build and push
         uses: docker/build-push-action@v7
@@ -70,7 +77,10 @@ jobs:
           platforms: linux/amd64,linux/arm64
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          target: prod
+          target: ${{ steps.vars.outputs.LATEST == 'true' && 'prod' || 'dev' }}
 
           # pr에서는 테스트용이기 때문에 push하지 않음 (dry-run)
           push: ${{ github.event_name != 'pull_request' }}
+
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
