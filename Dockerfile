@@ -1,6 +1,8 @@
 # 공통: uv + python 3.11
 FROM ghcr.io/linuxserver/baseimage-alpine:3.23 AS base
 
+LABEL org.opencontainers.image.base.name="ghcr.io/linuxserver/baseimage-alpine:3.23"
+
 ENV HOME="/config"
 ENV VIRTUAL_ENV="/venv"
 ENV PATH="$VIRTUAL_ENV/bin:$HOME/.local/bin:$PATH"
