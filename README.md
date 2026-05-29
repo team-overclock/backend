@@ -7,12 +7,16 @@
 - `data/`: 데이터베이스에 삽입할 csv 파일 저장 폴더
 - `diagram/`: 데이터베이스 다이어그램 파일 및 이미지 (참고용)
 - `app/main.py`: FastAPI 앱 생성/설정, 실행 진입점
+- `app/redis.py`: Redis 세션 연결 함수
 - `app/database.py`: DB 세션 연결 함수
 - `app/crud/`: CRUD(create, read, update, delete)
 - `app/core/`: 코어?
 - `app/models/`: DB 모델
 - `app/routers/`: 기능별 라우터
 - `app/schemas/`: 요청/응답 스키마
+- `app/demo/`: 데모 기능 모음
+- `app/manage/`: 관리 기능 모음
+- `app/parser/`: csv 및 df/gdf 등 데이터 파일 파서
 - `tests/`: 앱 테스트 케이스 코드
 - `root/`: 도커 이미지 빌드 시 루트 경로에 복사할 대상 폴더
 - `scripts/`: 파이썬/bash 스크립트 파일, 상단에 `#!`로 시작한다면 컨테이너 내에서 명령어로 변환됨
