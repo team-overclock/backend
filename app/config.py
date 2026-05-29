@@ -3,9 +3,9 @@ from pathlib import Path
 
 
 def parse_comma_separated(key: str, default_value: str):
-	value = os.getenv(key) or default_value
-	items = [x.strip() for x in value.split(",") if x.strip()]
-	return items
+    value = os.getenv(key) or default_value
+    items = [x.strip() for x in value.split(",") if x.strip()]
+    return items
 
 
 MODE = os.getenv("MODE") or "development"
