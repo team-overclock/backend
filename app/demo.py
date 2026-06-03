@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 from fastapi import APIRouter, Depends, Request, status
 from sqlalchemy.orm import Session
 
+from .config import GUEST_LOGIN_ENABLE
 from .database import get_db
 from .core import session
 from .core.exception import AppException
@@ -15,7 +16,6 @@ from .schemas.user import UserInfo
 
 load_dotenv()
 
-GUEST_LOGIN_ENABLE = (os.getenv("GUEST_LOGIN_ENABLE") or "false").lower() == "true"
 GUEST_EMAIL = os.getenv("GUEST_EMAIL") or "guest@example.com"
 GUEST_USERNAME = os.getenv("GUEST_USERNAME") or None
 GUEST_PASSWORD = os.getenv("GUEST_PASSWORD") or "guest"

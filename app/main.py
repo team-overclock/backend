@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.sessions import SessionMiddleware
 
-from .config import PROD, ALLOWED_HOSTS, TRUSTED_HOSTS
+from .config import PROD, ALLOWED_HOSTS, TRUSTED_HOSTS, GUEST_LOGIN_ENABLE
 from .models import Base
 from .redis import redis
 from .database import engine, SessionLocal
@@ -43,7 +43,8 @@ async def lifespan(app: FastAPI):
 
     db = SessionLocal()
     try:
-        demo.create_guest_user(db)
+        if GUEST_LOGIN_ENABLE:
+            demo.create_guest_user(db)
         sync_regions_to_redis(db, redis)
     except:
         pass
@@ -138,7 +139,7 @@ def create_app() -> FastAPI:
         app.include_router(manage.router)
     app.include_router(health.router)
     app.include_router(public.router)
-    if not PROD:
+    if GUEST_LOGIN_ENABLE:
         app.include_router(demo.router)
     app.include_router(auth.router)
     require_auth(users.router)

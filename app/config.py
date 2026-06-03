@@ -22,6 +22,8 @@ TRUSTED_HOSTS = parse_comma_separated("TRUSTED_HOSTS", "127.0.0.1")
 """신뢰할 수 있는 프록시 IP 목록"""
 
 
+GUEST_LOGIN_ENABLE = (os.getenv("GUEST_LOGIN_ENABLE") or "").lower() == "true"
+
 SEED_TASK_ID_PREFIX = "random_seed_"
 SEED_USERNAME_PREFIX = "seed_user_"
 
