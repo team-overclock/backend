@@ -18,11 +18,11 @@ WORKDIR /defaults
 
 
 
-# 배포용: 공통 이미지
+# venv 구성
 FROM base AS deploy-base
 RUN uv venv "$VIRTUAL_ENV"
 
-# 배포용: 빌드
+# 라이브러리 설치
 FROM deploy-base AS deploy-build
 ENV CC=clang
 ENV CXX=clang++
@@ -30,32 +30,14 @@ RUN apk add --no-cache gdal-dev clang compiler-rt
 COPY requirements.txt .
 RUN uv pip install --link-mode=copy --no-cache -r requirements.txt
 
-# 배포용: 메인
+# 최종
 FROM deploy-base AS deploy
+ENV MODE=production
 COPY --from=deploy-build "$VIRTUAL_ENV" "$VIRTUAL_ENV"
 COPY requirements.txt .
 COPY root/ /
 COPY data/url.txt ./data/url.txt
 COPY app ./app
 COPY scripts ./scripts
-WORKDIR /app
-
-
-
-# 운영용
-FROM deploy AS prod
-ENV MODE=production
-
-# 개발용: main 브랜치 push 시 자동 배포되는 이미지
-FROM deploy AS dev
-ENV MODE=development
-
-# 로컬 개발용 이미지
-FROM base AS local
-ENV MODE=local
-ENV CC=clang
-ENV CXX=clang++
-RUN apk add --no-cache gdal-dev clang compiler-rt
-COPY root/ /
-VOLUME /venv
+RUN sha256sum "/defaults/requirements.txt" | sed "s|/defaults|/app|" > "$VIRTUAL_ENV/.requirements.lock"
 WORKDIR /app

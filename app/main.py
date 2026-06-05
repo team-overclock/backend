@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.sessions import SessionMiddleware
 
-from .config import PROD, ALLOWED_HOSTS, TRUSTED_HOSTS, GUEST_LOGIN_ENABLE
+from .config import PROD, IS_HTTPS, ALLOWED_HOSTS, TRUSTED_HOSTS, GUEST_LOGIN_ENABLE
 from .models import Base
 from .redis import redis
 from .database import engine, SessionLocal
@@ -88,7 +88,7 @@ def create_app() -> FastAPI:
         secret_key=os.getenv("SECRET_KEY", "x"),
         session_cookie="session",
         same_site="lax",                                  # CSRF 방어
-        https_only=PROD,                                  # 운영 모드에서만 True
+        https_only=PROD and IS_HTTPS,                     # 운영 모드에서만 True
         max_age=60 * 60 * 24,                             # 1일 동안 세션 유지
     )
 

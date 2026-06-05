@@ -14,6 +14,11 @@ MODE = os.getenv("MODE") or "development"
 PROD = MODE == "production"
 """운영 모드 여부"""
 
+_IS_HTTPS = os.getenv("IS_HTTPS")
+if _IS_HTTPS is None:
+    _IS_HTTPS = "true" if os.getenv("PROTO") == "https" else "false"
+IS_HTTPS = (_IS_HTTPS or "").lower() == "true"
+
 
 ALLOWED_HOSTS = parse_comma_separated("ALLOWED_HOSTS", "localhost")
 """허용된 호스트 목록 (도메인)"""

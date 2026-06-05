@@ -4,7 +4,7 @@ source "/app/scripts/functions.sh"
 
 cd /app
 
-if [ "$MODE" == "production" ]; then
+if [ "$MODE" != "development" ]; then
 	exit 0
 fi
 
@@ -15,11 +15,7 @@ fi
 
 
 
-if [ -f ".requirements.lock" ] \
-&& [ -f "$VIRTUAL_ENV/.requirements.lock" ] \
-&& diff .requirements.lock "$VIRTUAL_ENV/.requirements.lock" > /dev/null \
-&& sha256sum -c .requirements.lock --quiet 2> /dev/null \
-; then
+if sha256sum -c "$VIRTUAL_ENV/.requirements.lock" --quiet 2> /dev/null; then
 	INFO "Skipping dependency installation, requirements.txt has not changed."
 	exit 0
 fi
@@ -33,6 +29,4 @@ if [ ! -f "$VIRTUAL_ENV/bin/activate" ]; then
 fi
 
 uv pip install --link-mode=copy --no-cache -r requirements.txt
-sha256sum requirements.txt > .requirements.lock
-cp .requirements.lock "$VIRTUAL_ENV/.requirements.lock"
-chown abc:abc .requirements.lock
+sha256sum "/app/requirements.txt" > "$VIRTUAL_ENV/.requirements.lock"

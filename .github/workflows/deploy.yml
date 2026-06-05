@@ -78,7 +78,6 @@ jobs:
           platforms: linux/amd64,linux/arm64
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          target: ${{ steps.vars.outputs.LATEST == 'true' && 'prod' || 'dev' }}
 
           # pr에서는 테스트용이기 때문에 push하지 않음 (dry-run)
           push: ${{ github.event_name != 'pull_request' }}
