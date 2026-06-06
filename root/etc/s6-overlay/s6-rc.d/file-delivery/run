@@ -2,7 +2,7 @@
 
 cd /app
 
-if [ -d "app" ]; then
+if [ -f "requirements.txt" ]; then
 	exit 0
 fi
 

@@ -20,13 +20,14 @@ WORKDIR /defaults
 
 # venv 구성
 FROM base AS deploy-base
+RUN apk add --no-cache gdal-dev
 RUN uv venv "$VIRTUAL_ENV"
 
 # 라이브러리 설치
 FROM deploy-base AS deploy-build
 ENV CC=clang
 ENV CXX=clang++
-RUN apk add --no-cache gdal-dev clang compiler-rt
+RUN apk add --no-cache clang compiler-rt
 COPY requirements.txt .
 RUN uv pip install --link-mode=copy --no-cache -r requirements.txt
 
