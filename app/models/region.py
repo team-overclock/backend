@@ -34,7 +34,7 @@ class Region(Base):
     source_id = Column(String(100), nullable=False, unique=True)
     parent_id = Column(INTEGER(unsigned=True), ForeignKey("region.id", ondelete="CASCADE", onupdate="CASCADE"), nullable=True)
     depth = Column(TINYINT(unsigned=True), nullable=False)
-    name = Column(String(255), nullable=False)
+    name = Column(String(255), unique=True, nullable=False)
     academy_count = Column(INTEGER(unsigned=True), nullable=False, default=0)
     updated_at = Column(DateTime, nullable=False, default=func.now(), onupdate=func.now())
     deleted_at = Column(DateTime)

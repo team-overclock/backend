@@ -32,10 +32,10 @@ class Infrastructure(Base, CoordinatesMixin):
 
     id = Column(INTEGER(unsigned=True), primary_key=True, index=True)
     type: InfrastructureTypeEnum = Column(Enum(InfrastructureTypeEnum, native_enum=False, length=100), nullable=False)
-    source_id = Column(String(100), nullable=False)
+    source_id = Column(String(100), nullable=False, unique=True)
     name = Column(String(255), nullable=False)
     point = Column(Geometry("POINT"), nullable=False, index=True)
-    details = Column(JSON)
+    details: dict = Column(JSON(none_as_null=True), nullable=True, default={})
     updated_at = Column(DateTime, nullable=False, default=func.now(), onupdate=func.now())
     deleted_at = Column(DateTime)
 

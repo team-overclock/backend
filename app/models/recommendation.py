@@ -1,15 +1,16 @@
 from typing import TYPE_CHECKING
-from sqlalchemy import Column, DateTime, JSON, String
+from sqlalchemy import CheckConstraint, Column, DateTime, JSON, String
 from sqlalchemy.dialects.mysql import INTEGER, BIGINT
 from sqlalchemy.orm import Mapped, relationship
 from sqlalchemy.sql import func
 
 from .base import Base
+from .search_log import SearchLog
 
 
 if TYPE_CHECKING:
     from ..core.enums import InfrastructureTypeEnum
-    from . import User, SearchLog
+    from . import User
 
 class Recommendation(Base):
     """
@@ -23,6 +24,8 @@ class Recommendation(Base):
     - jeonse_price_min: 희망 전세 최소 가격
     - jeonse_price_max: 희망 전세 최대 가격
     - top_properties: 시스템이 해당 추천 조합에 대해 생성한 상위 N개 추천 결과
+    - school_district_types: 희망 학군 유형 목록
+    - high_school_ids: 희망 고등학교 ID 목록
     - created_at: 추천 최초 생성 시간
     - finished_at: 추천 최초 완료 시간
     - updated_at: 추천 정보 마지막 업데이트 시간
@@ -36,14 +39,14 @@ class Recommendation(Base):
     id = Column(INTEGER(unsigned=True), primary_key=True, index=True)
     task_id = Column(String(64), unique=True, nullable=False)
     region = Column(String(255))
-    infrastructure_priorities = Column(JSON, nullable=False)
+    infrastructure_priorities: list[str] = Column(JSON(none_as_null=True), nullable=False, default={})
     sale_price_min = Column(BIGINT(unsigned=True))
     sale_price_max = Column(BIGINT(unsigned=True))
     jeonse_price_min = Column(BIGINT(unsigned=True))
     jeonse_price_max = Column(BIGINT(unsigned=True))
-    top_properties = Column(JSON)
-    school_district_types = Column(JSON)
-    high_school_ids = Column(JSON)
+    top_properties: list[dict] = Column(JSON(none_as_null=True), nullable=True, default={})
+    school_district_types: list[str] = Column(JSON(none_as_null=True), nullable=True, default=[])
+    high_school_ids: list[str] = Column(JSON(none_as_null=True), nullable=True, default=[])
     created_at = Column(DateTime, nullable=False, default=func.now())
     finished_at = Column(DateTime)
     updated_at = Column(DateTime)
@@ -60,7 +63,11 @@ class Recommendation(Base):
         해당 추천을 요청한 사용자 추가. 커밋은 하지 않음.
         - name: 사용자 지정 추천 별칭 (선택 사항)
         """
-        isn = SearchLog(name=name, user=user)
+        isn = SearchLog(
+            name=name,
+            user=user,
+            task_id=self.task_id,
+        )
         self.users.append(isn)
         return isn
 
