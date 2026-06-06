@@ -113,18 +113,29 @@ def test_change_password_invalid_current(mock_get_user_by_email, mock_get_user_b
 
     assert response.status_code == 400
     data = response.json()
-    assert data["code"] == "INVALID_CREDENTIALS"
+    assert data["code"] == "INCORRECT_CURRENT_PASSWORD"
     assert "현재 비밀번호가 일치하지 않습니다" in data["message"]
 
 
 
 @patch("app.dependencies.get_user_by_cuid")
 @patch("app.routers.auth.get_user_by_email")
-def test_get_user_recommendations(mock_get_user_by_email, mock_get_user_by_cuid, client) -> None:
+def test_get_user_recommendations(mock_get_user_by_email, mock_get_user_by_cuid, client, mock_db, mock_redis) -> None:
     """추천 요청 목록 조회(GET /users/me/recommendations) 테스트."""
     mock_user = make_mock_user()
     mock_get_user_by_email.return_value = mock_user
     mock_get_user_by_cuid.return_value = mock_user
+
+    # 고등학교 mock 데이터 설정
+    import json
+    mock_redis.hgetall.return_value = {
+        "1": json.dumps({
+            "id": 1,
+            "name": "서울고등학교",
+            "latitude": 37.1234,
+            "longitude": 127.1234
+        })
+    }
 
     # 1. 로그인
     client.post("/auth/login", json={"email": "test@example.com", "password": "password123"})
@@ -140,4 +151,4 @@ def test_get_user_recommendations(mock_get_user_by_email, mock_get_user_by_cuid,
     assert len(data["items"]) == 2
     assert data["items"][0]["status"] == "completed"
     assert data["items"][1]["status"] == "in_progress"
-    assert data["items"][0]["request_data"]["region"] == "서울특별시 용산구 도원동"
+    assert data["items"][0]["request_data"]["region"]["name"] == "서울특별시 용산구 도원동"

@@ -51,3 +51,28 @@ def test_get_infrastructure_types(client) -> None:
     types = [x["type"] for x in data["items"]]
     assert "SUBWAY_STATION" in types
     assert "PARK" in types
+
+
+def test_get_school_districts(client) -> None:
+    """학군 등급 목록 조회(/school-districts-types) API 테스트."""
+    # 1. API 호출
+    response = client.get("/school-districts-types")
+
+    # 2. 검증
+    assert response.status_code == 200
+    data = response.json()
+    assert "total" in data
+    assert "items" in data
+    assert len(data["items"]) == data["total"]
+    
+    # 각 학군 등급 아이템의 구조 검증
+    labels = [x["label"] for x in data["items"]]
+    assert "학원가 밀집형" in labels
+    assert "균형 잡힌 학업형" in labels
+    assert "여유로운 주거형" in labels
+    
+    types = [x["type"] for x in data["items"]]
+    assert "INTENSIVE" in types
+    assert "BALANCED" in types
+    assert "RELAXED" in types
+

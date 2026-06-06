@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, Request, status
 from sqlalchemy.orm import Session
 
 from ..database import get_db
-from ..schemas.error import AppError
+from ..schemas.error import DuplicateEmailError, InvalidCredentialsError
 from ..schemas.auth import LoginCheckResponse, UserCreateRequest, UserLoginRequest
 from ..schemas.user import UserInfo
 from ..dependencies import get_current_user_session
@@ -48,7 +48,7 @@ def login_check(
     summary="회원가입",
     status_code=status.HTTP_201_CREATED,
     responses={
-        409: { "model": AppError, "description": "이미 가입된 이메일인 경우" },
+        409: { "model": DuplicateEmailError, "description": "이미 가입된 이메일인 경우" },
     },
 )
 def signup(
@@ -71,7 +71,7 @@ def signup(
     summary="로그인 (세션 발급)",
     status_code=status.HTTP_200_OK,
     responses={
-        401: { "model": AppError, "description": "유효한 자격 증명이 아닌 경우" },
+        401: { "model": InvalidCredentialsError, "description": "유효한 자격 증명이 아닌 경우" },
     },
 )
 def login(

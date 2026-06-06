@@ -2,11 +2,15 @@
 
 from pydantic import BaseModel, Field
 
-from ..core.enums import InfrastructureTypeEnum, INFRASTRUCTURE_TYPES, INFRASTRUCTURE_TYPE_VALUES
+from ..core.enums import (
+    InfrastructureTypeEnum,
+    SchoolDistrictTypeEnum,
+    INFRASTRUCTURE_TYPES,
+    SCHOOL_DISTRICT_TYPES,
+)
 from .common import (
     PK_AI,
     RegionName,
-    InfrastructureType,
     TaskID,
     PropertyName,
     Score,
@@ -27,15 +31,34 @@ class RegionsResponse(BaseModel):
     items: list[RegionItem] = Field(description="유효한 regions 목록")
 
 
+class SchoolDistrictTypeItem(BaseModel):
+    type: SchoolDistrictTypeEnum = Field(description="학군 유형 고유 타입", examples=[SCHOOL_DISTRICT_TYPES[0]["type"]])
+    label: str = Field(description="학군 유형 한글명", examples=[SCHOOL_DISTRICT_TYPES[0]["label"]])
+    description: str = Field(description="학군 유형 상세 설명", examples=[SCHOOL_DISTRICT_TYPES[0]["description"]])
+
+class SchoolDistrictsResponse(BaseModel):
+    total: int = Field(description="학군 유형 개수")
+    items: list[SchoolDistrictTypeItem] = Field(description="유효한 학군 유형 목록")
+
 class InfrastructureTypeItem(BaseModel):
-    type: InfrastructureTypeEnum = Field(description="인프라 고유 타입", examples=[INFRASTRUCTURE_TYPES[0]["type"]])
+    type: InfrastructureTypeEnum = Field(description="인프라 유형 고유 타입", examples=[INFRASTRUCTURE_TYPES[0]["type"]])
     emoji: str = Field(description="아이콘 이모지", examples=[INFRASTRUCTURE_TYPES[0]["emoji"]])
-    label: str = Field(description="인프라 한글명", examples=[INFRASTRUCTURE_TYPES[0]["label"]])
-    description: str = Field(description="인프라 상세 설명", examples=[INFRASTRUCTURE_TYPES[0]["description"]])
+    label: str = Field(description="인프라 유형 한글명", examples=[INFRASTRUCTURE_TYPES[0]["label"]])
+    description: str = Field(description="인프라 유형 상세 설명", examples=[INFRASTRUCTURE_TYPES[0]["description"]])
 
 class InfrastructureTypesResponse(BaseModel):
     total: int = Field(description="인프라 유형 개수")
     items: list[InfrastructureTypeItem] = Field(description="유효한 인프라 유형 목록")
+
+class HighSchoolItem(BaseModel):
+    id: PK_AI = Field(description="고등학교 ID")
+    name: str = Field(description="고등학교 이름")
+    latitude: float = Field(description="위도")
+    longitude: float = Field(description="경도")
+
+class HighSchoolsResponse(BaseModel):
+    total: int = Field(description="고등학교 수")
+    items: list[HighSchoolItem] = Field(description="고등학교 목록")
 
 
 # # recommendation
@@ -43,13 +66,12 @@ class InfrastructureTypesResponse(BaseModel):
 class PriceRange(BaseModel):
     """가격 범위"""
 
-    min: PriceUnit
-    max: PriceUnit
+    min: PriceUnit | None
+    max: PriceUnit | None
 
 class AddressDetails(BaseModel):
     """주소 정보"""
 
-    region: RegionName | None = Field(description="동네 이름")
     land_lot: str | None = Field(description="지번 주소")
     road_name: str | None = Field(description="도로명 주소")
     latitude: float = Field(description="위도")
@@ -61,7 +83,9 @@ class RecommendationCreateRequest(BaseModel):
 
     name: str | None = Field(None, description="화면에 표시할 사용자 지정 추천 이름")
     region_id: PK_AI | None = Field(None, description="관심 있는 동네 ID")
-    infrastructure_types: list[str] = Field(description="관심 있는 인프라 유형 목록 (나열된 순서대로 높은 가중치 부여)", min_length=1, examples=[INFRASTRUCTURE_TYPE_VALUES])
+    infrastructure_types: list[InfrastructureTypeEnum] = Field(description="관심 있는 인프라 유형 목록 (나열된 순서대로 높은 가중치 부여)", min_length=1)
+    high_school_ids: list[PK_AI] | None = Field(None, description="관심 있는 고등학교 ID 목록 (우선순위 없음)")
+    school_district_types: list[SchoolDistrictTypeEnum] | None = Field(None, description="관심 있는 학군 유형 목록 (우선순위 없음)")
     sale_price: PriceRange | None = Field(None, description="희망 매매 가격 범위")
     jeonse_price: PriceRange | None = Field(None, description="희망 전세 가격 범위")
 
@@ -69,10 +93,12 @@ class RecommendationCreateRequestResolved(BaseModel):
     """추천 생성 요청 (human-readable)"""
 
     name: str | None = Field(description="사용자 지정 추천에 대한 별칭")
-    region: RegionName | None = Field(description="관심 있는 동네 이름")
-    infrastructure_types: list[InfrastructureType] = Field(description="인프라 유형 목록 (높은 가중치 순서)", min_length=1)
-    sale_price: PriceRange | None = Field(description="매매 가격 범위")
-    jeonse_price: PriceRange | None = Field(description="전세 가격 범위")
+    region: RegionItem | None = Field(description="관심 있는 동네 이름")
+    infrastructure_types: list[InfrastructureTypeItem] = Field(description="인프라 유형 목록 (높은 가중치 순서)", min_length=1)
+    high_schools: list[HighSchoolItem] = Field(description="관심 있는 고등학교 이름 목록")
+    school_districts: list[SchoolDistrictTypeItem] | None = Field(None, description="관심 있는 학군 유형 목록")
+    sale_price: PriceRange = Field(description="매매 가격 범위")
+    jeonse_price: PriceRange = Field(description="전세 가격 범위")
 
 class RecommendationMetadataUpdateRequest(BaseModel):
     """추천 메타데이터 업데이트 요청"""
@@ -86,17 +112,15 @@ class RecommendationCreateResponse(BaseModel):
     status: Status
 
 
-class RecommendationReportItemInfrastructureSummary(BaseModel):
+class RecommendationReportItemInfrastructureSummary(InfrastructureTypeItem):
     """매물 주변 인프라 요약"""
 
-    type: InfrastructureType = Field(description="인프라 유형")
     distance: float = Field(description="매물과의 거리(단위: m)")
     walking_duration: int = Field(description="매물에서 인프라까지의 도보 시간(분)")
 
-class RecommendationReportItemInfrastructureDetail(BaseModel):
+class RecommendationReportItemInfrastructureDetail(InfrastructureTypeItem):
     """매물 주변 인프라 상세 정보"""
 
-    type: InfrastructureType = Field(description="인프라 유형")
     name: str = Field(description="인프라 이름")
     score: Score = Field(description="추천 점수 계산에 사용된 인프라 점수")
     distance: float = Field(description="매물과의 거리(단위: m)")
@@ -111,6 +135,7 @@ class RecommendationReportItemSummary(BaseModel):
     id: PK_AI = Field(description="매물 고유 ID")
     name: PropertyName
     score: Score
+    region: RegionItem = Field(description="동네 이름")
     address: AddressDetails = Field(description="매물 주소 정보")
     sale_price: int | None = Field(description="매물의 매매 최소 가격")
     jeonse_price: int | None = Field(description="매물의 전세 최소 가격")
@@ -126,7 +151,7 @@ class RecommendationReport(RecommendationCreateResponse):
 
 class RecommendationReportItemDetail(RecommendationReportItemSummary):
     """추천 매물 및 주변 인프라 상세 정보"""
-    infrastructure: list[RecommendationReportItemInfrastructureDetail] = Field(description="모든 매물 주변 인프라 상세 정보")
+    infrastructure: list[RecommendationReportItemInfrastructureDetail] = Field(description="매물 주변 모든 인프라 상세 정보")
 
 
 class UserRecommendationsItem(RecommendationCreateResponse):

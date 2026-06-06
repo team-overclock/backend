@@ -3,6 +3,7 @@
 import os
 from dotenv import load_dotenv
 from fastapi import APIRouter, Depends, Request, status
+from fastapi.exceptions import HTTPException
 from sqlalchemy.orm import Session
 
 from .config import GUEST_LOGIN_ENABLE
@@ -10,6 +11,7 @@ from .database import get_db
 from .core import session
 from .core.exception import AppException
 from .crud.user import create_user
+from .schemas.error import NotFoundError
 from .schemas.auth import UserCreateRequest
 from .schemas.user import UserInfo
 
@@ -29,9 +31,8 @@ def create_guest_user(db: Session):
     """
 
     if not GUEST_LOGIN_ENABLE:
-        raise AppException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            message="현재 게스트 로그인 기능이 비활성화 상태입니다.",
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
         )
 
     return create_user(db, UserCreateRequest(
@@ -51,7 +52,12 @@ def get_guest_user(db: Session):
 
 # router
 
-router = APIRouter(tags=["demo"])
+router = APIRouter(
+    tags=["demo"],
+    responses={
+        404: { "model": NotFoundError, "description": "게스트 로그인이 비활성화된 경우" },
+    }
+)
 
 @router.post(
     "/auth/guest",

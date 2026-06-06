@@ -6,10 +6,12 @@ from sqlalchemy.orm import Session
 
 from ..redis import get_redis
 from ..database import get_db
-from ..core.validate import verify_region, verify_infrastructure_types
+from ..core.enums import SchoolDistrictTypeEnum, InfrastructureTypeEnum, INFRASTRUCTURE_TYPE_MAP, SCHOOL_DISTRICT_TYPE_MAP
+from ..core.validate import verify_region, verify_high_schools
 from ..dependencies import only_self_access, get_current_recommendation, get_current_search_log
 from ..models import User, SearchLog, Recommendation
-from ..schemas.error import AppError, RegionsResponse, InfrastructureTypesResponse
+from ..crud.service import get_high_schools
+from ..schemas.error import RegionError
 from ..schemas.common import TaskID, PK_AI
 from ..schemas.service import (
     RecommendationCreateRequest,
@@ -21,6 +23,12 @@ from ..schemas.service import (
 
 
 router = APIRouter(prefix="/recommendations", tags=["recommendations"])
+task_id_router = APIRouter(
+    prefix="/{task_id}",
+    responses={
+        302: { "description": "task id가 full id가 아닌 경우" },
+    }
+)
 
 # 유저별 추천 요청 목록은 user 라우터에 포함됨
 
@@ -30,7 +38,7 @@ router = APIRouter(prefix="/recommendations", tags=["recommendations"])
     summary="추천 생성 요청",
     status_code=status.HTTP_202_ACCEPTED,
     responses={
-        400: { "model": Union[RegionsResponse, InfrastructureTypesResponse], "description": "유효하지 않은 동네 및 인프라 유형이 포함되어 있는 경우" },
+        400: { "model": Union[RegionError], "description": "유효하지 않은 동네 및 인프라 유형이 포함되어 있는 경우" },
     }
 )
 def request_generate_recommendation(
@@ -45,12 +53,15 @@ def request_generate_recommendation(
     """
 
     region = verify_region(redis, body.region_id) if body.region_id else None
-    infras = verify_infrastructure_types(body.infrastructure_types)
+    infras = body.infrastructure_types
+    schools = verify_high_schools(redis, body.high_school_ids) if body.high_school_ids else []
 
     print("################### DEBUG: Create Recommendation Request ###################")
     print("Received recommendation request:", body)
     print("region", region)
     print("infras", infras)
+    print("high_schools", schools)
+    print("school_district_types", body.school_district_types)
     print("sale_price", body.sale_price)
     print("jeonse_price", body.jeonse_price)
     print("################### DEBUG END: Create Recommendation Request ###################")
@@ -68,13 +79,10 @@ def request_generate_recommendation(
     }
 
 
-@router.patch(
-    "/{task_id}",
+@task_id_router.patch(
+    "",
     summary="추천 이름 변경",
     status_code=status.HTTP_204_NO_CONTENT,
-    responses={
-        400: { "model": AppError, "description": "`task_id` 값이 유효하지 않은 경우" },
-    }
 )
 def change_recommendation_name(
     task_id: TaskID,
@@ -88,18 +96,16 @@ def change_recommendation_name(
     return
 
 
-@router.get(
-    "/{task_id}",
+@task_id_router.get(
+    "",
     summary="추천 결과 요약 정보 조회",
     status_code=status.HTTP_200_OK,
-    responses={
-        400: { "model": AppError, "description": "`task_id` 값이 유효하지 않은 경우" },
-    }
 )
 def get_recommendation_summary(
     task_id: TaskID,
     recommendation: Recommendation = Depends(get_current_recommendation),
     db: Session = Depends(get_db),
+    redis = Depends(get_redis),
 ) -> RecommendationReport:
     """추천 결과 요약 정보 조회"""
 
@@ -114,10 +120,18 @@ def get_recommendation_summary(
         "total": 2,
         "request_data": {
             "name": "string",
-            "region": "서울특별시 용산구 도원동",
+            "region": {
+                "id": 1,
+                "name": "서울특별시 용산구 도원동",
+            },
             "infrastructure_types": [
-                "지하철역",
-                "공원·녹지",
+                INFRASTRUCTURE_TYPE_MAP[InfrastructureTypeEnum.SUBWAY_STATION],
+                INFRASTRUCTURE_TYPE_MAP[InfrastructureTypeEnum.PARK],
+            ],
+            "high_schools": get_high_schools(redis)[0:3],
+            "school_districts": [
+                SCHOOL_DISTRICT_TYPE_MAP[SchoolDistrictTypeEnum.INTENSIVE],
+                SCHOOL_DISTRICT_TYPE_MAP[SchoolDistrictTypeEnum.BALANCED],
             ],
             "sale_price": {
                 "min": 0,
@@ -133,8 +147,11 @@ def get_recommendation_summary(
                 "id": 1,
                 "name": "삼성래미안",
                 "score": 87,
+                "region": {
+                    "id": 1,
+                    "name": "서울특별시 용산구 도원동",
+                },
                 "address": {
-                    "region": "서울특별시 용산구 도원동",
                     "land_lot": "서울특별시 용산구 도원동 23",
                     "road_name": "서울특별시 용산구 새창로 70",
                     "latitude": 37.53830000,
@@ -144,12 +161,12 @@ def get_recommendation_summary(
                 "jeonse_price": 440000000,
                 "infrastructure": [
                     {
-                        "type": "지하철역",
+                        **INFRASTRUCTURE_TYPE_MAP[InfrastructureTypeEnum.SUBWAY_STATION],
                         "distance": 0.6,
                         "walking_duration": 13,
                     },
                     {
-                        "type": "공원·녹지",
+                        **INFRASTRUCTURE_TYPE_MAP[InfrastructureTypeEnum.PARK],
                         "distance": 1.5,
                         "walking_duration": 21,
                     },
@@ -159,8 +176,11 @@ def get_recommendation_summary(
                 "id": 2,
                 "name": "도원",
                 "score": 79.3,
+                "region": {
+                    "id": 1,
+                    "name": "서울특별시 용산구 도원동",
+                },
                 "address": {
-                    "region": "서울특별시 용산구 도원동",
                     "land_lot": "서울특별시 용산구 도원동 3-7",
                     "road_name": "서울특별시 용산구 새창로12길 11-15",
                     "latitude": 37.53895000,
@@ -170,12 +190,12 @@ def get_recommendation_summary(
                 "jeonse_price": 150000000,
                 "infrastructure": [
                     {
-                        "type": "지하철역",
+                        **INFRASTRUCTURE_TYPE_MAP[InfrastructureTypeEnum.SUBWAY_STATION],
                         "distance": 1.3,
                         "walking_duration": 18,
                     },
                     {
-                        "type": "공원·녹지",
+                        **INFRASTRUCTURE_TYPE_MAP[InfrastructureTypeEnum.PARK],
                         "distance": 1.1,
                         "walking_duration": 15,
                     },
@@ -185,13 +205,10 @@ def get_recommendation_summary(
     }
 
 
-@router.get(
-    "/{task_id}/properties/{property_id}",
+@task_id_router.get(
+    "/properties/{property_id}",
     summary="추천 매물의 상세 정보 조회",
     status_code=status.HTTP_200_OK,
-    responses={
-        400: { "model": AppError, "description": "`task_id` 값이 유효하지 않은 경우" },
-    }
 )
 def get_recommendation_property_detail(
     task_id: TaskID,
@@ -214,8 +231,11 @@ def get_recommendation_property_detail(
         "id": 1,
         "name": "삼성래미안",
         "score": 87,
+        "region": {
+            "id": 1,
+            "name": "서울특별시 용산구 도원동",
+        },
         "address": {
-            "region": "서울특별시 용산구 도원동",
             "land_lot": "서울특별시 용산구 도원동 23",
             "road_name": "서울특별시 용산구 새창로 70",
             "latitude": 37.53830000,
@@ -225,7 +245,7 @@ def get_recommendation_property_detail(
         "jeonse_price": 440000000,
         "infrastructure": [
             {
-                "type": "지하철역",
+                **INFRASTRUCTURE_TYPE_MAP[InfrastructureTypeEnum.SUBWAY_STATION],
                 "name": "효창공원앞",
                 "score": 93.3,
                 "distance": 0.6,
@@ -234,7 +254,7 @@ def get_recommendation_property_detail(
                 "longitude": 126.96173072,
             },
             {
-                "type": "공원·녹지",
+                **INFRASTRUCTURE_TYPE_MAP[InfrastructureTypeEnum.PARK],
                 "name": "효창근린공원",
                 "score": 57.8,
                 "distance": 1.5,
@@ -244,3 +264,6 @@ def get_recommendation_property_detail(
             },
         ],
     }
+
+
+router.include_router(task_id_router)

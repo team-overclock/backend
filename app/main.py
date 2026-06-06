@@ -3,7 +3,7 @@
 import os
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, APIRouter, Request, Depends
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 from fastapi.middleware.cors import CORSMiddleware
@@ -14,9 +14,9 @@ from .config import PROD, IS_HTTPS, ALLOWED_HOSTS, TRUSTED_HOSTS, GUEST_LOGIN_EN
 from .models import Base
 from .redis import redis
 from .database import engine, SessionLocal
-from .core.exception import AppException
-from .schemas.error import AppError
-from .crud.service import sync_regions_to_redis
+from .core.exception import AppException, RedirectException
+from .schemas.error import AuthenticationRequiredError
+from .crud.service import sync_regions_to_redis, sync_high_schools_to_redis
 from .dependencies import get_current_user_session
 from .routers import (
     scalar,
@@ -24,6 +24,7 @@ from .routers import (
     public,
     auth,
     users,
+    infrastructure,
     recommendations,
 )
 
@@ -46,6 +47,7 @@ async def lifespan(app: FastAPI):
         if GUEST_LOGIN_ENABLE:
             demo.create_guest_user(db)
         sync_regions_to_redis(db, redis)
+        sync_high_schools_to_redis(db, redis)
     except:
         pass
     finally:
@@ -123,13 +125,17 @@ def create_app() -> FastAPI:
             },
         )
 
+    @app.exception_handler(RedirectException)
+    async def redirect_exception_handler(_: Request, exc: RedirectException):
+        return RedirectResponse(url=exc.url, status_code=exc.status_code)
+
     def require_auth(router: APIRouter):
         """로그인 전용 라우터 자동 구성"""
         app.include_router(
             router,
             dependencies=[Depends(get_current_user_session)],
             responses={
-                401: {"model": AppError, "description": "로그인이 되어있지 않은 경우"},
+                401: {"model": AuthenticationRequiredError, "description": "로그인이 되어있지 않은 경우"},
             },
         )
 
@@ -143,6 +149,7 @@ def create_app() -> FastAPI:
         app.include_router(demo.router)
     app.include_router(auth.router)
     require_auth(users.router)
+    require_auth(infrastructure.router)
     require_auth(recommendations.router)
     return app
 

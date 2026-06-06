@@ -6,9 +6,11 @@ from sqlalchemy.orm import Session
 
 from ..models import User, SearchLog
 from ..database import get_db
-from ..core.enums import AppErrorCodeEnum
+from ..redis import get_redis
+from ..core.enums import AppErrorCodeEnum, SchoolDistrictTypeEnum, InfrastructureTypeEnum, INFRASTRUCTURE_TYPE_MAP, SCHOOL_DISTRICT_TYPE_MAP
 from ..core.exception import AppException
-from ..schemas.error import AppError
+from ..crud.service import get_high_schools
+from ..schemas.error import IncorrectCurrentPasswordError
 from ..schemas.user import UserInfoUpdateRequest, UserInfo, UserPasswordChangeRequest
 from ..schemas.service import UserRecommendations
 from ..dependencies import only_self_access, get_current_user_recommendations
@@ -16,9 +18,6 @@ from ..dependencies import only_self_access, get_current_user_recommendations
 router = APIRouter(
     prefix="/users/me",
     tags=["users"],
-    responses={
-        403: { "model": AppError, "description": "접근 권한이 없는 경우" },
-    },
 )
 
 
@@ -61,7 +60,7 @@ def user_info_update(
     summary="비밀번호 변경",
     status_code=status.HTTP_204_NO_CONTENT,
     responses={
-        400: { "model": AppError, "description": "현재 비밀번호가 일치하지 않는 경우" },
+        400: { "model": IncorrectCurrentPasswordError, "description": "현재 비밀번호가 일치하지 않는 경우" },
     }
 )
 def user_password_change(
@@ -73,7 +72,7 @@ def user_password_change(
     if not body.current_password or not user.verify_password(body.current_password):
         raise AppException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            code=AppErrorCodeEnum.INVALID_CREDENTIALS,
+            code=AppErrorCodeEnum.INCORRECT_CURRENT_PASSWORD,
             message="현재 비밀번호가 일치하지 않습니다.",
         )
     if body.new_password != body.current_password:
@@ -90,6 +89,8 @@ def user_password_change(
     tags=["recommendations"],
 )
 def user_recommendations(
+    db: Session = Depends(get_db),
+    redis = Depends(get_redis),
     user: User = Depends(only_self_access),
     user_recommendations: list[SearchLog] = Depends(get_current_user_recommendations),
 ) -> UserRecommendations:
@@ -110,9 +111,18 @@ def user_recommendations(
                 "status": "completed",
                 "request_data": {
                     "name": "사용자 지정 추천 이름",
-                    "region": "서울특별시 용산구 도원동",
+                    "region": {
+                        "id": 1,
+                        "name": "서울특별시 용산구 도원동"
+                    },
                     "infrastructure_types": [
-                        "지하철역",
+                        INFRASTRUCTURE_TYPE_MAP[InfrastructureTypeEnum.SUBWAY_STATION],
+                    ],
+                    "high_schools": [
+                        get_high_schools(redis)[0],
+                    ],
+                    "school_districts": [
+                        SCHOOL_DISTRICT_TYPE_MAP[SchoolDistrictTypeEnum.INTENSIVE],
                     ],
                     "sale_price": {
                         "min": 0,
@@ -131,10 +141,18 @@ def user_recommendations(
                 "status": "in_progress",
                 "request_data": {
                     "name": None,
-                    "region": "서울특별시 용산구 새창로",
+                    "region": {
+                        "id": 2,
+                        "name": "서울특별시 용산구 새창로",
+                    },
                     "infrastructure_types": [
-                        "지하철역",
-                        "공원·녹지",
+                        INFRASTRUCTURE_TYPE_MAP[InfrastructureTypeEnum.SUBWAY_STATION],
+                        INFRASTRUCTURE_TYPE_MAP[InfrastructureTypeEnum.PARK],
+                    ],
+                    "high_schools": [],
+                    "school_districts": [
+                        SCHOOL_DISTRICT_TYPE_MAP[SchoolDistrictTypeEnum.INTENSIVE],
+                        SCHOOL_DISTRICT_TYPE_MAP[SchoolDistrictTypeEnum.RELAXED],
                     ],
                     "sale_price": {
                         "min": 0,

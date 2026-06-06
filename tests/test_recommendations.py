@@ -17,8 +17,9 @@ def make_mock_user(id=1, email="test@example.com", name="Test User", cuid="cuid1
 @patch("app.dependencies.get_user_by_cuid")
 @patch("app.routers.auth.get_user_by_email")
 @patch("app.core.validate.get_region_by_id")
+@patch("app.routers.recommendations.verify_high_schools")
 def test_request_generate_recommendation_success(
-    mock_get_region_by_id, mock_get_user_by_email, mock_get_user_by_cuid, client
+    mock_verify_high_schools, mock_get_region_by_id, mock_get_user_by_email, mock_get_user_by_cuid, client
 ) -> None:
     """추천 생성 요청 성공 테스트."""
     # 1. 모킹 설정
@@ -28,6 +29,7 @@ def test_request_generate_recommendation_success(
     
     # 유효한 지역 반환 설정
     mock_get_region_by_id.return_value = {"id": 1, "name": "서울특별시 용산구 도원동"}
+    mock_verify_high_schools.return_value = [MagicMock(), MagicMock()]
 
     # 2. 로그인
     client.post("/auth/login", json={"email": "test@example.com", "password": "password123"})
@@ -39,6 +41,8 @@ def test_request_generate_recommendation_success(
             "name": "내 맞춤 추천",
             "region_id": 1,
             "infrastructure_types": ["SUBWAY_STATION", "PARK"],
+            "high_school_ids": [1, 2],
+            "school_district_types": ["INTENSIVE", "BALANCED"],
             "sale_price": {"min": 0, "max": 1000000000},
             "jeonse_price": {"min": 0, "max": 500000000}
         }
@@ -88,7 +92,7 @@ def test_request_generate_recommendation_invalid_region(
 def test_request_generate_recommendation_invalid_infra(
     mock_get_region_by_id, mock_get_user_by_email, mock_get_user_by_cuid, client
 ) -> None:
-    """유효하지 않은 인프라 유형으로 추천 생성 요청 시 400 에러 검증."""
+    """유효하지 않은 인프라 유형으로 추천 생성 요청 시 422 에러 검증."""
     mock_user = make_mock_user()
     mock_get_user_by_email.return_value = mock_user
     mock_get_user_by_cuid.return_value = mock_user
@@ -106,10 +110,82 @@ def test_request_generate_recommendation_invalid_infra(
         }
     )
 
+    assert response.status_code == 422
+    data = response.json()
+    assert any(err["loc"] == ["body", "infrastructure_types", 0] for err in data["detail"])
+
+
+@patch("app.dependencies.get_user_by_cuid")
+@patch("app.routers.auth.get_user_by_email")
+@patch("app.core.validate.get_region_by_id")
+@patch("app.routers.recommendations.verify_high_schools")
+def test_request_generate_recommendation_invalid_high_schools(
+    mock_verify_high_schools, mock_get_region_by_id, mock_get_user_by_email, mock_get_user_by_cuid, client
+) -> None:
+    """유효하지 않은 고등학교 ID로 추천 생성 요청 시 400 에러 검증."""
+    from app.core.exception import AppException
+    from app.core.enums import AppErrorCodeEnum
+    from fastapi import status
+
+    mock_user = make_mock_user()
+    mock_get_user_by_email.return_value = mock_user
+    mock_get_user_by_cuid.return_value = mock_user
+    mock_get_region_by_id.return_value = {"id": 1, "name": "서울특별시 용산구 도원동"}
+
+    mock_verify_high_schools.side_effect = AppException(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        code=AppErrorCodeEnum.HIGH_SCHOOL_ERROR,
+        message="유효하지 않은 고등학교 ID가 포함되어 있습니다.",
+        detail={"invalid_ids": [999]}
+    )
+
+    # 1. 로그인
+    client.post("/auth/login", json={"email": "test@example.com", "password": "password123"})
+
+    # 2. 추천 생성 요청
+    response = client.post(
+        "/recommendations",
+        json={
+            "region_id": 1,
+            "infrastructure_types": ["SUBWAY_STATION"],
+            "high_school_ids": [999]
+        }
+    )
+
     assert response.status_code == 400
     data = response.json()
-    assert data["code"] == "INFRASTRUCTURE_TYPE_ERROR"
-    assert "유효하지 않은 인프라 유형이 포함" in data["message"]
+    assert data["code"] == "HIGH_SCHOOL_ERROR"
+    assert "유효하지 않은 고등학교 ID" in data["message"]
+
+
+@patch("app.dependencies.get_user_by_cuid")
+@patch("app.routers.auth.get_user_by_email")
+@patch("app.core.validate.get_region_by_id")
+def test_request_generate_recommendation_invalid_school_districts(
+    mock_get_region_by_id, mock_get_user_by_email, mock_get_user_by_cuid, client
+) -> None:
+    """유효하지 않은 학군 등급값으로 추천 생성 요청 시 422 에러 검증."""
+    mock_user = make_mock_user()
+    mock_get_user_by_email.return_value = mock_user
+    mock_get_user_by_cuid.return_value = mock_user
+    mock_get_region_by_id.return_value = {"id": 1, "name": "서울특별시 용산구 도원동"}
+
+    # 1. 로그인
+    client.post("/auth/login", json={"email": "test@example.com", "password": "password123"})
+
+    # 2. 추천 생성 요청
+    response = client.post(
+        "/recommendations",
+        json={
+            "region_id": 1,
+            "infrastructure_types": ["SUBWAY_STATION"],
+            "school_district_types": ["TOP"]  # 유효하지 않은 등급
+        }
+    )
+
+    assert response.status_code == 422
+    data = response.json()
+    assert any(err["loc"] == ["body", "school_district_types", 0] for err in data["detail"])
 
 
 @patch("app.dependencies.get_user_by_cuid")
@@ -145,19 +221,23 @@ def test_change_recommendation_name_success(
 
 @patch("app.dependencies.get_user_by_cuid")
 @patch("app.routers.auth.get_user_by_email")
-@patch("app.dependencies.get_recommendations_by_user_id_and_task_id")
+@patch("app.dependencies.get_search_log_by_user_id_and_task_id")
 def test_get_recommendation_summary_success(
-    mock_get_recommendations, mock_get_user_by_email, mock_get_user_by_cuid, client
+    mock_get_search_log, mock_get_user_by_email, mock_get_user_by_cuid, client
 ) -> None:
     """추천 결과 요약 조회(GET /recommendations/{task_id}) 성공 테스트."""
     mock_user = make_mock_user()
     mock_get_user_by_email.return_value = mock_user
     mock_get_user_by_cuid.return_value = mock_user
 
-    # 1개의 추천 결과 리턴하도록 설정
+    # 1개의 search_log 및 recommendation 리턴하도록 설정
     mock_rec = MagicMock(spec=Recommendation)
     mock_rec.task_id = "unique_task_id"
-    mock_get_recommendations.return_value = [mock_rec]
+    
+    mock_search_log = MagicMock(spec=SearchLog)
+    mock_search_log.task_id = "unique_task_id"
+    mock_search_log.recommendation = mock_rec
+    mock_get_search_log.return_value = [mock_search_log]
 
     # 1. 로그인
     client.post("/auth/login", json={"email": "test@example.com", "password": "password123"})
@@ -176,21 +256,25 @@ def test_get_recommendation_summary_success(
 
 @patch("app.dependencies.get_user_by_cuid")
 @patch("app.routers.auth.get_user_by_email")
-@patch("app.dependencies.get_recommendations_by_user_id_and_task_id")
+@patch("app.dependencies.get_search_log_by_user_id_and_task_id")
 def test_get_recommendation_property_detail_success(
-    mock_get_recommendations, mock_get_user_by_email, mock_get_user_by_cuid, client
+    mock_get_search_log, mock_get_user_by_email, mock_get_user_by_cuid, client
 ) -> None:
     """추천 매물 상세 조회(GET /recommendations/{task_id}/properties/{property_id}) 성공 테스트."""
     mock_user = make_mock_user()
     mock_get_user_by_email.return_value = mock_user
     mock_get_user_by_cuid.return_value = mock_user
 
-    # 1개의 추천 결과 리턴하도록 설정
+    # 1개의 search_log 및 recommendation 리턴하도록 설정
     mock_rec = MagicMock(spec=Recommendation)
     mock_rec.task_id = "unique_task_id"
     # top_properties 모킹
     mock_rec.top_properties = [MagicMock()]
-    mock_get_recommendations.return_value = [mock_rec]
+    
+    mock_search_log = MagicMock(spec=SearchLog)
+    mock_search_log.task_id = "unique_task_id"
+    mock_search_log.recommendation = mock_rec
+    mock_get_search_log.return_value = [mock_search_log]
 
     # 1. 로그인
     client.post("/auth/login", json={"email": "test@example.com", "password": "password123"})
@@ -205,3 +289,33 @@ def test_get_recommendation_property_detail_success(
     assert data["name"] == "삼성래미안"
     assert len(data["infrastructure"]) == 2
     assert data["infrastructure"][0]["name"] == "효창공원앞"
+
+
+@patch("app.dependencies.get_user_by_cuid")
+@patch("app.routers.auth.get_user_by_email")
+@patch("app.dependencies.get_search_log_by_user_id_and_task_id")
+def test_get_recommendation_summary_redirect(
+    mock_get_search_log, mock_get_user_by_email, mock_get_user_by_cuid, client
+) -> None:
+    """추천 결과 요약 조회 시 full id가 아닌 경우 302 리다이렉션 테스트."""
+    mock_user = make_mock_user()
+    mock_get_user_by_email.return_value = mock_user
+    mock_get_user_by_cuid.return_value = mock_user
+
+    # unique_task_id가 실제 task_id이고, 사용자는 unique_ta로 요청
+    mock_rec = MagicMock(spec=Recommendation)
+    mock_rec.task_id = "unique_task_id"
+    
+    mock_search_log = MagicMock(spec=SearchLog)
+    mock_search_log.task_id = "unique_task_id"
+    mock_search_log.recommendation = mock_rec
+    mock_get_search_log.return_value = [mock_search_log]
+
+    # 1. 로그인
+    client.post("/auth/login", json={"email": "test@example.com", "password": "password123"})
+
+    # 2. 요약 조회 요청 (prefix로 요청)
+    response = client.get("/recommendations/unique_ta", follow_redirects=False)
+    assert response.status_code == 302
+    assert response.headers.get("location") == "/recommendations/unique_task_id"
+

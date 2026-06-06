@@ -42,6 +42,8 @@ class Recommendation(Base):
     jeonse_price_min = Column(BIGINT(unsigned=True))
     jeonse_price_max = Column(BIGINT(unsigned=True))
     top_properties = Column(JSON)
+    school_district_types = Column(JSON)
+    high_school_ids = Column(JSON)
     created_at = Column(DateTime, nullable=False, default=func.now())
     finished_at = Column(DateTime)
     updated_at = Column(DateTime)

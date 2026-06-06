@@ -7,12 +7,25 @@ from ..models import (
     Region,
     Recommendation,
     SearchLog,
+    Infrastructure,
 )
+from ..core.enums import InfrastructureTypeEnum
 
 
 _max_depth = 0
 REGIONS_ALL_KEY = "regions:all"
 REGIONS_DEPTH_PREFIX = "regions:depth_"
+
+HIGH_SCHOOLS_ALL_KEY = "high_schools:all"
+
+
+def fetch_hgetall(redis: Redis, hkey: str, sort: bool = True, **extra_dict):
+    result = redis.hgetall(hkey)
+    override_dict = extra_dict.get("override_dict") or {}
+    result = [{ **extra_dict, **json.loads(v), **override_dict } for v in result.values()]
+    if sort: result.sort(key=lambda x: x["id"])
+    return result
+
 
 def region_depth_hkeys():
     return [f"{REGIONS_DEPTH_PREFIX}{d}" for d in range(_max_depth + 1)]
@@ -43,23 +56,16 @@ def sync_regions_to_redis(db: Session, redis: Redis):
         total += redis.hset(hkey, mapping=value)
     return total
 
-def fetch_regions(redis: Redis, hkey: str, sort: bool = True, **extra_dict):
-    result = redis.hgetall(hkey)
-    override_dict = extra_dict.get("override_dict") or {}
-    result = [{ **extra_dict, **json.loads(v), **override_dict } for v in result.values()]
-    if sort: result.sort(key=lambda x: x["id"])
-    return result
-
 def get_regions(redis: Redis, include_depth: bool = True) -> list[dict]:
     """모든 동네 목록을 반환하는 함수"""
     if not include_depth:
-        return fetch_regions(redis, REGIONS_ALL_KEY)
+        return fetch_hgetall(redis, REGIONS_ALL_KEY)
     else:
         items = []
         hkeys = region_depth_hkeys()
         for hkey in hkeys:
             depth = int(hkey[len(REGIONS_DEPTH_PREFIX):])
-            result = fetch_regions(redis, hkey, sort=False, depth=depth)
+            result = fetch_hgetall(redis, hkey, sort=False, depth=depth)
             items.extend(result)
         items.sort(key=lambda x: x["id"])
         return items
@@ -74,12 +80,46 @@ def get_region_by_id(redis: Redis, region_id: int) -> dict | None:
 def get_regions_by_depth(redis: Redis, depth: int):
     """주어진 depth에 해당하는 동네 목록을 반환하는 함수"""
     hkey = f"{REGIONS_DEPTH_PREFIX}{depth}"
-    result = fetch_regions(redis, hkey)
+    result = fetch_hgetall(redis, hkey)
     return result
 
 def get_region_by_source_id(db: Session, source_id: int):
     """주어진 source_id와 depth에 해당하는 동네 목록을 반환하는 함수"""
     return db.query(Region).filter(Region.source_id == source_id).first()
+
+
+def sync_high_schools_to_redis(db: Session, redis: Redis):
+    """
+    고등학교 목록을 DB에서 가져와 Redis에 싱크합니다.
+    """
+    schools = db.query(Infrastructure).filter(
+        Infrastructure.type == InfrastructureTypeEnum.HIGH_SCHOOL,
+        Infrastructure.deleted_at.is_(None)
+    ).all()
+
+    mapping = {}
+    for s in schools:
+        value = {
+            "id": s.id,
+            "name": s.name,
+            "latitude": float(s.latitude) if s.latitude is not None else 0.0,
+            "longitude": float(s.longitude) if s.longitude is not None else 0.0,
+        }
+        mapping[s.id] = json.dumps(value, ensure_ascii=False)
+
+    redis.delete(HIGH_SCHOOLS_ALL_KEY)
+    redis.hset(HIGH_SCHOOLS_ALL_KEY, mapping=mapping)
+    return len(mapping)
+
+def get_high_schools(redis: Redis):
+    """고등학교 인프라 목록을 Redis에서 조회하여 반환하는 함수"""
+    return fetch_hgetall(redis, HIGH_SCHOOLS_ALL_KEY, sort=False)
+
+def get_high_school_map(redis: Redis, sort: bool = True, **extra_dict):
+    """고등학교 인프라 목록을 Redis에서 조회하여 반환하는 함수"""
+    result = get_high_schools(redis)
+    school_map = {s["id"]: s for s in result}
+    return school_map
 
 
 def create_recommendation(
@@ -117,7 +157,7 @@ def get_recommendation_by_task_id(db: Session, recommendation_task_id: str):
     return db.query(Recommendation).filter(Recommendation.task_id == recommendation_task_id).first()
 
 def get_recommendations_by_user_id_and_task_id(db: Session, user_id: int, task_id: str, size: int = 2) -> list[Recommendation]:
-    """주어진 task_id로 시작하는 추천 목록을 반환하는 함수. 최대 `size` 개수만큼 반환"""
+    """해당 유저가 요청한 추천 중 주어진 task_id로 시작하는 추천 목록을 반환하는 함수. 최대 `size` 개수만큼 반환"""
     return db.query(Recommendation).join(
         SearchLog,
         SearchLog.recommendation_id == Recommendation.id,
