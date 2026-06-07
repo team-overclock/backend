@@ -37,7 +37,7 @@ def sync_regions_to_redis(db: Session, redis: Redis):
     - 조회 시 db가 아닌 redis에서 조회
     """
     global _max_depth
-    regions = db.query(Region).all()
+    regions = db.query(Region).filter(Region.deleted_at.is_(None)).all()
     caches = {}
     depths = set()
     for r in regions:
@@ -85,7 +85,7 @@ def get_regions_by_depth(redis: Redis, depth: int):
 
 def get_region_by_source_id(db: Session, source_id: int):
     """주어진 source_id와 depth에 해당하는 동네 목록을 반환하는 함수"""
-    return db.query(Region).filter(Region.source_id == source_id).first()
+    return db.query(Region).filter(Region.source_id == source_id, Region.deleted_at.is_(None)).first()
 
 
 def sync_high_schools_to_redis(db: Session, redis: Redis):
