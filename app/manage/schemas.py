@@ -27,6 +27,12 @@ class DataInsertStatusResponse(BaseModel):
     has_infrastructure: bool
 
 
+class ScoresStatusResponse(BaseModel):
+    """점수 데이터 상태 조회 응답"""
+
+    total: int
+
+
 class GenerateSeedsRequest(BaseModel):
     """시드 데이터 생성 요청"""
 

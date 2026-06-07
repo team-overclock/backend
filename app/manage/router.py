@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter
 
-from . import tables, data, seeds
+from . import tables, data, scores, seeds
 
 
 router = APIRouter(prefix="/manage", tags=["manage"])
@@ -10,4 +10,5 @@ router = APIRouter(prefix="/manage", tags=["manage"])
 
 router.include_router(tables.router)
 router.include_router(data.router)
+router.include_router(scores.router)
 router.include_router(seeds.router)
