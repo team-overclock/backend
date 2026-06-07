@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from ..redis import get_redis
 from ..database import get_db
-from ..core.enums import SchoolDistrictTypeEnum, InfrastructureTypeEnum, INFRASTRUCTURE_TYPE_MAP, SCHOOL_DISTRICT_TYPE_MAP
+from ..core.enums import SchoolDistrictTypeEnum, InfrastructureTypeEnum
 from ..core.validate import verify_region, verify_high_schools
 from ..dependencies import only_self_access, get_current_recommendation, get_current_search_log
 from ..models import User, SearchLog, Recommendation
@@ -135,13 +135,13 @@ def get_recommendation_summary(
                 "name": "서울특별시 용산구 도원동",
             },
             "infrastructure_types": [
-                INFRASTRUCTURE_TYPE_MAP[InfrastructureTypeEnum.SUBWAY_STATION],
-                INFRASTRUCTURE_TYPE_MAP[InfrastructureTypeEnum.PARK],
+                InfrastructureTypeEnum.SUBWAY_STATION.meta,
+                InfrastructureTypeEnum.PARK.meta,
             ],
             "high_schools": get_high_schools(redis)[0:3],
             "school_districts": [
-                SCHOOL_DISTRICT_TYPE_MAP[SchoolDistrictTypeEnum.INTENSIVE],
-                SCHOOL_DISTRICT_TYPE_MAP[SchoolDistrictTypeEnum.BALANCED],
+                SchoolDistrictTypeEnum.INTENSIVE.meta,
+                SchoolDistrictTypeEnum.BALANCED.meta,
             ],
             "sale_price": {
                 "min": 0,
@@ -171,12 +171,12 @@ def get_recommendation_summary(
                 "jeonse_price": 440000000,
                 "infrastructure": [
                     {
-                        **INFRASTRUCTURE_TYPE_MAP[InfrastructureTypeEnum.SUBWAY_STATION],
+                        **InfrastructureTypeEnum.SUBWAY_STATION.meta,
                         "distance": 0.6,
                         "walking_duration": 13,
                     },
                     {
-                        **INFRASTRUCTURE_TYPE_MAP[InfrastructureTypeEnum.PARK],
+                        **InfrastructureTypeEnum.PARK.meta,
                         "distance": 1.5,
                         "walking_duration": 21,
                     },
@@ -200,12 +200,12 @@ def get_recommendation_summary(
                 "jeonse_price": 150000000,
                 "infrastructure": [
                     {
-                        **INFRASTRUCTURE_TYPE_MAP[InfrastructureTypeEnum.SUBWAY_STATION],
+                        **InfrastructureTypeEnum.SUBWAY_STATION.meta,
                         "distance": 1.3,
                         "walking_duration": 18,
                     },
                     {
-                        **INFRASTRUCTURE_TYPE_MAP[InfrastructureTypeEnum.PARK],
+                        **InfrastructureTypeEnum.PARK.meta,
                         "distance": 1.1,
                         "walking_duration": 15,
                     },
@@ -255,7 +255,7 @@ def get_recommendation_property_detail(
         "jeonse_price": 440000000,
         "infrastructure": [
             {
-                **INFRASTRUCTURE_TYPE_MAP[InfrastructureTypeEnum.SUBWAY_STATION],
+                **InfrastructureTypeEnum.SUBWAY_STATION.meta,
                 "name": "효창공원앞",
                 "score": 93.3,
                 "distance": 0.6,
@@ -264,7 +264,7 @@ def get_recommendation_property_detail(
                 "longitude": 126.96173072,
             },
             {
-                **INFRASTRUCTURE_TYPE_MAP[InfrastructureTypeEnum.PARK],
+                **InfrastructureTypeEnum.PARK.meta,
                 "name": "효창근린공원",
                 "score": 57.8,
                 "distance": 1.5,

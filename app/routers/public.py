@@ -3,7 +3,7 @@
 from fastapi import APIRouter, Depends
 
 from ..redis import get_redis
-from ..core.enums import INFRASTRUCTURE_TYPES, SCHOOL_DISTRICT_TYPES
+from ..core.enums import InfrastructureTypeEnum, SchoolDistrictTypeEnum
 from ..schemas.service import RegionsResponse, InfrastructureTypesResponse, SchoolDistrictsResponse
 from ..crud.service import get_regions as get_all_regions
 
@@ -36,8 +36,8 @@ def get_infrastructure_types(
 ) -> InfrastructureTypesResponse:
     """인프라 유형 목록 반환"""
     return {
-        "total": len(INFRASTRUCTURE_TYPES),
-        "items": INFRASTRUCTURE_TYPES,
+        "total": len(InfrastructureTypeEnum),
+        "items": [x.meta for x in InfrastructureTypeEnum],
     }
 
 
@@ -49,6 +49,6 @@ def get_school_districts(
 ) -> SchoolDistrictsResponse:
     """학군 유형 목록 반환"""
     return {
-        "total": len(SCHOOL_DISTRICT_TYPES),
-        "items": SCHOOL_DISTRICT_TYPES,
+        "total": len(SchoolDistrictTypeEnum),
+        "items": [x.meta for x in SchoolDistrictTypeEnum],
     }

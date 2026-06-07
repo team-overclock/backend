@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from ..models import User, SearchLog
 from ..database import get_db
 from ..redis import get_redis
-from ..core.enums import AppErrorCodeEnum, SchoolDistrictTypeEnum, InfrastructureTypeEnum, INFRASTRUCTURE_TYPE_MAP, SCHOOL_DISTRICT_TYPE_MAP
+from ..core.enums import AppErrorCodeEnum, SchoolDistrictTypeEnum, InfrastructureTypeEnum
 from ..core.exception import AppException
 from ..crud.service import get_high_schools
 from ..schemas.error import IncorrectCurrentPasswordError
@@ -116,13 +116,13 @@ def user_recommendations(
                         "name": "서울특별시 용산구 도원동"
                     },
                     "infrastructure_types": [
-                        INFRASTRUCTURE_TYPE_MAP[InfrastructureTypeEnum.SUBWAY_STATION],
+                        InfrastructureTypeEnum.SUBWAY_STATION.meta,
                     ],
                     "high_schools": [
                         get_high_schools(redis)[0],
                     ],
                     "school_districts": [
-                        SCHOOL_DISTRICT_TYPE_MAP[SchoolDistrictTypeEnum.INTENSIVE],
+                        SchoolDistrictTypeEnum.INTENSIVE.meta,
                     ],
                     "sale_price": {
                         "min": 0,
@@ -146,13 +146,13 @@ def user_recommendations(
                         "name": "서울특별시 용산구 새창로",
                     },
                     "infrastructure_types": [
-                        INFRASTRUCTURE_TYPE_MAP[InfrastructureTypeEnum.SUBWAY_STATION],
-                        INFRASTRUCTURE_TYPE_MAP[InfrastructureTypeEnum.PARK],
+                        InfrastructureTypeEnum.SUBWAY_STATION.meta,
+                        InfrastructureTypeEnum.PARK.meta,
                     ],
                     "high_schools": [],
                     "school_districts": [
-                        SCHOOL_DISTRICT_TYPE_MAP[SchoolDistrictTypeEnum.INTENSIVE],
-                        SCHOOL_DISTRICT_TYPE_MAP[SchoolDistrictTypeEnum.RELAXED],
+                        SchoolDistrictTypeEnum.INTENSIVE.meta,
+                        SchoolDistrictTypeEnum.RELAXED.meta,
                     ],
                     "sale_price": {
                         "min": 0,

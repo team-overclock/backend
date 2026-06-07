@@ -2,7 +2,7 @@ import random
 from sqlalchemy.orm import Session
 from datetime import datetime, timedelta
 
-from ...core.enums import INFRASTRUCTURE_TYPE_VALUES
+from ...core.enums import InfrastructureTypeEnum
 from ...redis import redis
 from ...database import SessionLocal
 from ...demo import create_guest_user
@@ -166,7 +166,7 @@ def _run(
 ):
     guest_user = get_or_create_guest_user(db)
     regions = get_regions(redis)
-    infra_types = INFRASTRUCTURE_TYPE_VALUES
+    infra_types = [x.value for x in InfrastructureTypeEnum]
     infras = db.query(Infrastructure).all()
     properties = db.query(Property).all()
 

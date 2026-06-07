@@ -5,8 +5,6 @@ from pydantic import BaseModel, Field
 from ..core.enums import (
     InfrastructureTypeEnum,
     SchoolDistrictTypeEnum,
-    INFRASTRUCTURE_TYPES,
-    SCHOOL_DISTRICT_TYPES,
 )
 from .common import (
     PK_AI,
@@ -32,19 +30,19 @@ class RegionsResponse(BaseModel):
 
 
 class SchoolDistrictTypeItem(BaseModel):
-    type: SchoolDistrictTypeEnum = Field(description="학군 유형 고유 타입", examples=[SCHOOL_DISTRICT_TYPES[0]["type"]])
-    label: str = Field(description="학군 유형 한글명", examples=[SCHOOL_DISTRICT_TYPES[0]["label"]])
-    description: str = Field(description="학군 유형 상세 설명", examples=[SCHOOL_DISTRICT_TYPES[0]["description"]])
+    type: SchoolDistrictTypeEnum = Field(description="학군 유형 고유 타입", examples=[x.meta.type for x in SchoolDistrictTypeEnum])
+    label: str = Field(description="학군 유형 한글명", examples=[x.meta.label for x in SchoolDistrictTypeEnum])
+    description: str = Field(description="학군 유형 상세 설명", examples=[x.meta.description for x in SchoolDistrictTypeEnum])
 
 class SchoolDistrictsResponse(BaseModel):
     total: int = Field(description="학군 유형 개수")
     items: list[SchoolDistrictTypeItem] = Field(description="유효한 학군 유형 목록")
 
 class InfrastructureTypeItem(BaseModel):
-    type: InfrastructureTypeEnum = Field(description="인프라 유형 고유 타입", examples=[INFRASTRUCTURE_TYPES[0]["type"]])
-    emoji: str = Field(description="아이콘 이모지", examples=[INFRASTRUCTURE_TYPES[0]["emoji"]])
-    label: str = Field(description="인프라 유형 한글명", examples=[INFRASTRUCTURE_TYPES[0]["label"]])
-    description: str = Field(description="인프라 유형 상세 설명", examples=[INFRASTRUCTURE_TYPES[0]["description"]])
+    type: InfrastructureTypeEnum = Field(description="인프라 유형 고유 타입", examples=[x.meta.type for x in InfrastructureTypeEnum])
+    emoji: str = Field(description="아이콘 이모지", examples=[x.meta.emoji for x in InfrastructureTypeEnum])
+    label: str = Field(description="인프라 유형 한글명", examples=[x.meta.label for x in InfrastructureTypeEnum])
+    description: str = Field(description="인프라 유형 상세 설명", examples=[x.meta.description for x in InfrastructureTypeEnum])
 
 class InfrastructureTypesResponse(BaseModel):
     total: int = Field(description="인프라 유형 개수")
