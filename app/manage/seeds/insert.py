@@ -2,19 +2,16 @@ import random
 from sqlalchemy.orm import Session
 from datetime import datetime, timedelta
 
-from ...core.enums import InfrastructureTypeEnum
+from ...core.enums import InfrastructureTypeEnum, SchoolDistrictTypeEnum
 from ...redis import redis
 from ...database import SessionLocal
 from ...demo import create_guest_user
-from ...crud.service import get_regions
+from ...crud.service import get_regions, get_high_schools
 from ...utils import run_with_progress
 from ...models import (
     User,
-    SearchLog,
     Recommendation,
-    Infrastructure,
-    Property,
-    PropertyInfrastructure,
+    SearchLog,
 )
 
 from ...config import (
@@ -23,6 +20,7 @@ from ...config import (
     DEFAULT_INSERT_SEED_RECOMMENDATIONS,
     DEFAULT_INSERT_SEED_USERS,
 )
+from ...services.recommendation import generate_recommendation
 
 
 start_ts = int(datetime(2022, 1, 1, 0, 0, 0).timestamp())
@@ -59,102 +57,64 @@ def generate_seed_recommendations(
     users: list[User],
     regions: list[dict],
     infra_types: list[str],
-    infras: list[Infrastructure],
-    properties: list[Property],
+    school_district_types: list[str],
+    high_school_ids: list[int],
 ):
     n = min(5, len(users))
     max_request_users = random.choice([m for m in range(1, n + 1) for _ in range((n ** 2) - (m ** 2) + 1)])
     request_users = random.sample(users, k=max_request_users)
 
-    selected_region = random.choice(regions)
+    task_id = f"{SEED_TASK_ID_PREFIX}{suffix}"
     has_sale_price = random.choice([True, False])
     has_jeonse_price = random.choice([True, False])
+    selected_region = random.choice(regions)
+    selected_infra_types = random.sample(infra_types, k=random.randint(1, len(infra_types)))
     selected_sale_price = random_range(0, 999999999999) if has_sale_price else (None, None)
     selected_jeonse_price = random_range(0, 999999999999) if has_jeonse_price else (None, None)
+    selected_school_district_types = random.sample(school_district_types, k=random.randint(0, len(school_district_types)))
+    selected_high_school_ids = random.sample(high_school_ids, k=random.randint(0, min(10, len(high_school_ids))))
+
+    random.shuffle(selected_infra_types)
+
+    rec = None
     created_at, finished_at = random_range(start_ts, end_ts)
     created_at = datetime.fromtimestamp(created_at)
+    for user in request_users:
+        _, rec = generate_recommendation(
+            db,
+            background_tasks=None,
+            task_id=task_id,
+            request_user=user,
+            rec_name=None if random.choice([True, False]) else f"추천 {'x' * random.randint(1, 10)}",
+            region=selected_region,
+            infrastructure_types=selected_infra_types,
+            school_district_types=selected_school_district_types,
+            high_school_ids=selected_high_school_ids,
+            sale_price_min=selected_sale_price[0],
+            sale_price_max=selected_sale_price[1],
+            jeonse_price_min=selected_jeonse_price[0],
+            jeonse_price_max=selected_jeonse_price[1],
+        )
+        is_last_viewed = random.choice([True, False])
+        last_viewed_at = created_at + timedelta(minutes=random.randint(1, 1000)) if is_last_viewed else None
+        search_log = db.query(SearchLog).filter(
+            SearchLog.recommendation == rec,
+            SearchLog.user == user,
+        ).first()
+        search_log.last_viewed_at = last_viewed_at
+
     failed_at = (created_at + timedelta(minutes=random.randint(1, 3))) if random.choice([True] + [False] * 4) else None
     finished_at = datetime.fromtimestamp(finished_at) if not failed_at and random.choice([True, False]) else None
     updated_at = finished_at + timedelta(minutes=random.randint(100, 1000)) if finished_at and random.choice([True, [False] * 4]) else None
 
-    selected_infra_types = random.sample(infra_types, k=random.randint(1, len(infra_types)))
-    random.shuffle(selected_infra_types)
+    rec.created_at = created_at
+    rec.finished_at = finished_at
+    rec.failed_at = failed_at
+    rec.updated_at = updated_at
 
-    selected_properties = random.sample(properties, k=random.randint(5, 10))
-    scores = [random.uniform(0.01, 100.0) for _ in selected_properties]
-    selected_properties = sorted(selected_properties, key=lambda x: scores[selected_properties.index(x)], reverse=True)
-    top_properties = [
-        {
-            "id": prop.id,
-            "name": prop.name,
-            "score": scores[selected_properties.index(prop)],
-            "region": prop.region.name,
-            "sale_price": sum(random_range(0, 999999999999))/2 if has_sale_price else None,
-            "jeonse_price": sum(random_range(0, 999999999999))/2 if has_jeonse_price else None,
-        }
-        for prop in selected_properties[:5]
-    ]
-
-    rec = Recommendation(
-        task_id=f"{SEED_TASK_ID_PREFIX}{suffix}",
-        infrastructure_priorities=selected_infra_types,
-        sale_price_min=selected_sale_price[0],
-        sale_price_max=selected_sale_price[1],
-        jeonse_price_min=selected_jeonse_price[0],
-        jeonse_price_max=selected_jeonse_price[1],
-        region=selected_region["name"],
-        top_properties=top_properties,
-        created_at=created_at,
-        finished_at=finished_at,
-        updated_at=updated_at,
-        failed_at=failed_at,
-    )
-    db.add(rec)
-
-    is_last_viewed = random.choice([True, False])
-    last_viewed_at = rec.created_at + timedelta(minutes=random.randint(1, 1000)) if is_last_viewed else None
-    search_logs = [
-        SearchLog(
-            task_id=rec.task_id,
-            user=user,
-            recommendation=rec,
-            requested_at=rec.created_at,
-            last_viewed_at=last_viewed_at,
-            name=None if random.choice([True, False]) else f"추천 {'x' * random.randint(1, 10)}",
-        )
-        for user in request_users
-    ]
-    db.add_all(search_logs)
-
-    for curr_property in selected_properties:
-        for curr_infra in selected_infra_types:
-            infra = random.choice(list(filter(lambda x: x.type.value == curr_infra, infras)))
-            create_property_infrastructure_score(db, curr_property, infra, random.uniform(0.01, 100.0), random.randint(10, 1000))
+    db.commit()
 
     return rec
-
-def create_property_infrastructure_score(
-    db: Session,
-    property: Property,
-    infrastructure: Infrastructure,
-    score: float,
-    distance: int,
-):
-    ins = db.query(PropertyInfrastructure).filter(
-        PropertyInfrastructure.property_id == property.id,
-        PropertyInfrastructure.infrastructure_id == infrastructure.id
-    ).first()
-    if not ins:
-        ins = PropertyInfrastructure(
-            property=property,
-            property_type=property.type,
-            infrastructure=infrastructure,
-            infrastructure_type=infrastructure.type.value,
-            score=score,
-            distance=distance,
-        )
-        db.add(ins)
-    return ins
 
 
 def _run(
@@ -167,12 +127,12 @@ def _run(
     guest_user = get_or_create_guest_user(db)
     regions = get_regions(redis)
     infra_types = [x.value for x in InfrastructureTypeEnum]
-    infras = db.query(Infrastructure).all()
-    properties = db.query(Property).all()
+    school_district_types = [x.value for x in SchoolDistrictTypeEnum]
 
     db_users = db.query(User).filter(User.name.like(f"{SEED_USERNAME_PREFIX}%")).all()
     last_user_suffix = len(db_users)
     last_task_id_suffix = db.query(Recommendation).filter(Recommendation.task_id.like(f"{SEED_TASK_ID_PREFIX}%")).count()
+    high_school_ids = [x["id"] for x in get_high_schools(redis)]
 
     new_users = run_with_progress(
         range(num_users),
@@ -194,8 +154,8 @@ def _run(
             users,
             regions,
             infra_types,
-            infras, 
-            properties,
+            school_district_types,
+            high_school_ids,
         ),
         silent=silent,
     )

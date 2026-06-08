@@ -107,7 +107,6 @@ class RecommendationCreateResponse(BaseModel):
     """추천 생성 요청에 대한 응답"""
 
     task_id: TaskID
-    status: Status
 
 
 class RecommendationReportItemInfrastructureSummary(InfrastructureTypeItem):
@@ -142,6 +141,7 @@ class RecommendationReportItemSummary(BaseModel):
 class RecommendationReport(RecommendationCreateResponse):
     """추천 결과"""
 
+    status: Status
     total: int | None = Field(description="추천 매물 개수 (`status`가 `in_progress`인 경우에만 `null`)")
     request_data: RecommendationCreateRequestResolved = Field(description="추천 요청 데이터")
     properties: list[RecommendationReportItemSummary] | None = Field(description="추천 매물 목록 (`status`가 `in_progress`인 경우에만 `null`)")
@@ -155,6 +155,7 @@ class RecommendationReportItemDetail(RecommendationReportItemSummary):
 class UserRecommendationsItem(RecommendationCreateResponse):
     """추천 요청에 대한 요약 정보"""
 
+    status: Status
     requested_at: Datetime | None = Field(description="추천 요청 시각")
     last_viewed_at: Datetime | None = Field(description="마지막으로 추천 결과를 조회한 시각")
     request_data: RecommendationCreateRequestResolved = Field(description="추천 요청 데이터")

@@ -1,10 +1,12 @@
+import builtins
 from typing import TYPE_CHECKING
-from sqlalchemy import Column, ForeignKey, DateTime, String
+from sqlalchemy import Column, ForeignKey, Enum, DateTime, String
 from sqlalchemy.dialects.mysql import INTEGER, DECIMAL
 from sqlalchemy.orm import Mapped, relationship
 from sqlalchemy.sql import func
 
 from .base import Base
+from ..core.enums import InfrastructureTypeEnum
 
 
 if TYPE_CHECKING:
@@ -29,7 +31,7 @@ class PropertyInfrastructure(Base):
 
     infrastructure_id = Column(INTEGER(unsigned=True), ForeignKey("infrastructure.id", ondelete="CASCADE", onupdate="CASCADE"), primary_key=True)
     property_id = Column(INTEGER(unsigned=True), ForeignKey("property.id", ondelete="CASCADE", onupdate="CASCADE"), primary_key=True)
-    infrastructure_type = Column(String(100), nullable=False)
+    infrastructure_type: Mapped[InfrastructureTypeEnum] = Column(Enum(InfrastructureTypeEnum, native_enum=False, length=100), nullable=False)
     property_type = Column(String(100))
     score = Column(DECIMAL(5, 2, unsigned=True), nullable=False)
     distance = Column(INTEGER(unsigned=True), nullable=False)
@@ -37,3 +39,8 @@ class PropertyInfrastructure(Base):
 
     infrastructure: Mapped["Infrastructure"] = relationship("Infrastructure", back_populates="property_scores")
     property: Mapped["Property"] = relationship("Property", back_populates="infrastructure_scores")
+
+    @builtins.property
+    def walking_duration(self):
+        """distance를 도보 시간(분)으로 환산한 값 (도보 속도 60m/min 기준)"""
+        return float(self.distance) / 60

@@ -46,7 +46,7 @@ class Recommendation(Base):
     jeonse_price_max = Column(BIGINT(unsigned=True))
     top_properties: list[dict] = Column(JSON(none_as_null=True), nullable=True, default={})
     school_district_types: list[str] = Column(JSON(none_as_null=True), nullable=True, default=[])
-    high_school_ids: list[str] = Column(JSON(none_as_null=True), nullable=True, default=[])
+    high_school_ids: list[int] = Column(JSON(none_as_null=True), nullable=True, default=[])
     created_at = Column(DateTime, nullable=False, default=func.now())
     finished_at = Column(DateTime)
     updated_at = Column(DateTime)
@@ -63,13 +63,21 @@ class Recommendation(Base):
         해당 추천을 요청한 사용자 추가. 커밋은 하지 않음.
         - name: 사용자 지정 추천 별칭 (선택 사항)
         """
-        isn = SearchLog(
-            name=name,
-            user=user,
-            task_id=self.task_id,
-        )
-        self.users.append(isn)
-        return isn
+        ins = None
+        for log in self.users:
+            if log.user_id == user.id:
+                ins = log
+                break
+
+        if not ins:
+            ins = SearchLog(
+                name=name,
+                user=user,
+                task_id=self.task_id,
+            )
+            self.users.append(ins)
+
+        return ins
 
     def set_infrastructure_priorities(
         self,

@@ -31,7 +31,7 @@ class Infrastructure(Base, CoordinatesMixin):
     __tablename__ = "infrastructure"
 
     id = Column(INTEGER(unsigned=True), primary_key=True, index=True)
-    type: InfrastructureTypeEnum = Column(Enum(InfrastructureTypeEnum, native_enum=False, length=100), nullable=False)
+    type: Mapped[InfrastructureTypeEnum] = Column(Enum(InfrastructureTypeEnum, native_enum=False, length=100), nullable=False)
     source_id = Column(String(100), nullable=False, unique=True)
     name = Column(String(255), nullable=False)
     point = Column(Geometry("POINT"), nullable=False, index=True)

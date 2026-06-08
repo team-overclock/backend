@@ -9,12 +9,12 @@ from ..models import (
     SearchLog,
     Infrastructure,
 )
-from ..core.enums import InfrastructureTypeEnum
+from ..core.enums import InfrastructureTypeEnum, SchoolDistrictTypeEnum
 
 
-_max_depth = 0
 REGIONS_ALL_KEY = "regions:all"
 REGIONS_DEPTH_PREFIX = "regions:depth_"
+REGIONS_MAX_DEPTH_KEY = "regions:max_depth"
 
 HIGH_SCHOOLS_ALL_KEY = "high_schools:all"
 
@@ -27,8 +27,15 @@ def fetch_hgetall(redis: Redis, hkey: str, sort: bool = True, **extra_dict):
     return result
 
 
-def region_depth_hkeys():
-    return [f"{REGIONS_DEPTH_PREFIX}{d}" for d in range(_max_depth + 1)]
+def region_depth_hkeys(redis: Redis):
+    max_depth = get_region_max_depth(redis)
+    return [f"{REGIONS_DEPTH_PREFIX}{d}" for d in range(max_depth + 1)]
+
+def set_region_max_depth(redis: Redis, depth: int):
+    redis.set(REGIONS_MAX_DEPTH_KEY, depth)
+
+def get_region_max_depth(redis: Redis):
+    return int(redis.get(REGIONS_MAX_DEPTH_KEY) or 0)
 
 
 def sync_regions_to_redis(db: Session, redis: Redis):
@@ -36,25 +43,31 @@ def sync_regions_to_redis(db: Session, redis: Redis):
     변하지 않는 값으로, 서버 올릴 때 redis에 자동으로 올림
     - 조회 시 db가 아닌 redis에서 조회
     """
-    global _max_depth
     regions = db.query(Region).filter(Region.deleted_at.is_(None)).all()
     caches = {}
-    depths = set()
+    depths = set([-1])
     for r in regions:
         depths.add(r.depth)
         hkey = f"{REGIONS_DEPTH_PREFIX}{r.depth}"
         value = {"id": r.id, "name": r.name}
         caches.setdefault(hkey, {}).update({r.id: json.dumps(value, ensure_ascii=False)})
-    _max_depth = max(depths) if len(depths) > 0 else 0
 
-    keys = region_depth_hkeys()
-    redis.delete(*keys)
-    total = 0
-    for hkey in caches:
-        value = caches[hkey]
-        redis.hset(REGIONS_ALL_KEY, mapping=value)
-        total += redis.hset(hkey, mapping=value)
-    return total
+    with redis.pipeline(transaction=True) as pipe:
+        pipe.delete(REGIONS_ALL_KEY)
+        for i in range(5):
+            pipe.delete(f"{REGIONS_DEPTH_PREFIX}{i}")
+
+        for hkey in caches:
+            value = caches[hkey]
+            pipe.hset(REGIONS_ALL_KEY, mapping=value)
+            pipe.hset(hkey, mapping=value)
+
+        max_depth = max(depths)
+        pipe.set(REGIONS_MAX_DEPTH_KEY, max_depth)
+
+        pipe.execute()
+
+    return len(regions)
 
 def get_regions(redis: Redis, include_depth: bool = True) -> list[dict]:
     """모든 동네 목록을 반환하는 함수"""
@@ -62,7 +75,7 @@ def get_regions(redis: Redis, include_depth: bool = True) -> list[dict]:
         return fetch_hgetall(redis, REGIONS_ALL_KEY)
     else:
         items = []
-        hkeys = region_depth_hkeys()
+        hkeys = region_depth_hkeys(redis)
         for hkey in hkeys:
             depth = int(hkey[len(REGIONS_DEPTH_PREFIX):])
             result = fetch_hgetall(redis, hkey, sort=False, depth=depth)
@@ -125,15 +138,18 @@ def get_high_school_map(redis: Redis, sort: bool = True, **extra_dict):
 def create_recommendation(
     db: Session,
     task_id: str,
-    region: Region,
+    region: str,
+    infrastructure_types: list[str] | None,
+    school_district_types: list[SchoolDistrictTypeEnum] | None,
+    high_school_ids: list[int] | None,
     sale_price_min: int | None,
     sale_price_max: int | None,
     jeonse_price_min: int | None,
     jeonse_price_max: int | None,
     *,
     request_user: User | None = None,
-    infrastructure_types: list[str] = [],
     name: str | None = None,
+    **kwargs,
 ):
     """
     추천 생성 함수. 커밋은 하지 않음.
@@ -142,11 +158,14 @@ def create_recommendation(
     rec = Recommendation(
         task_id=task_id,
         region=region,
+        school_district_types=school_district_types,
+        high_school_ids=high_school_ids,
         sale_price_min=sale_price_min,
         sale_price_max=sale_price_max,
         jeonse_price_min=jeonse_price_min,
         jeonse_price_max=jeonse_price_max,
     )
+
     if request_user: rec.add_user(request_user, name)
     if infrastructure_types: rec.set_infrastructure_priorities(infrastructure_types)
     db.add(rec)

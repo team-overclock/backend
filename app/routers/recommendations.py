@@ -1,7 +1,7 @@
 """추천 엔드포인트 라우트 모듈."""
 
 from typing import Union
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, BackgroundTasks, status
 from sqlalchemy.orm import Session
 
 from ..redis import get_redis
@@ -11,7 +11,6 @@ from ..core.validate import verify_region, verify_high_schools
 from ..dependencies import only_self_access, get_current_recommendation, get_current_search_log
 from ..models import User, SearchLog, Recommendation
 from ..crud.service import get_high_schools
-from ..services.recommendation import generate_recommendation_task_id
 from ..schemas.error import RegionError
 from ..schemas.common import TaskID, PK_AI
 from ..schemas.service import (
@@ -21,6 +20,8 @@ from ..schemas.service import (
     RecommendationMetadataUpdateRequest,
     RecommendationReportItemDetail,
 )
+
+from ..services.recommendation import generate_recommendation
 
 
 router = APIRouter(prefix="/recommendations", tags=["recommendations"])
@@ -44,6 +45,7 @@ task_id_router = APIRouter(
 )
 def request_generate_recommendation(
     body: RecommendationCreateRequest,
+    background_tasks: BackgroundTasks,
     redis = Depends(get_redis),
     db: Session = Depends(get_db),
     user: User = Depends(only_self_access),
@@ -54,38 +56,34 @@ def request_generate_recommendation(
     """
 
     region = verify_region(redis, body.region_id) if body.region_id else None
-    infras = body.infrastructure_types
     schools = verify_high_schools(redis, body.high_school_ids) if body.high_school_ids else []
 
-    print("################### DEBUG: Create Recommendation Request ###################")
-    print("Received recommendation request:", body)
-    print("region", region)
-    print("infras", infras)
-    print("high_schools", schools)
-    print("school_district_types", body.school_district_types)
-    print("sale_price", body.sale_price)
-    print("jeonse_price", body.jeonse_price)
-    print("################### DEBUG END: Create Recommendation Request ###################")
+    rec_name = (body.name if body.name else "").strip() or None
+    infrastructure_types = body.infrastructure_types
+    school_district_types = body.school_district_types or []
+    high_school_ids = [x["id"] for x in schools]
+    sale_price_min = body.sale_price.min if body.sale_price else None
+    sale_price_max = body.sale_price.max if body.sale_price else None
+    jeonse_price_min = body.jeonse_price.min if body.jeonse_price else None
+    jeonse_price_max = body.jeonse_price.max if body.jeonse_price else None
 
-    # 입력받은 조건들을 기반으로 task_id 생성
-    task_id = generate_recommendation_task_id(
-        region_id = region["id"] if region else None,
-        infrastructure_types = body.infrastructure_types,
-        high_school_ids = [x["id"] for x in schools],
-        school_district_types = body.school_district_types or [],
-        sale_price_min = body.sale_price.min if body.sale_price else None,
-        sale_price_max = body.sale_price.max if body.sale_price else None,
-        deposit_price_min = body.jeonse_price.min if body.jeonse_price else None,
-        deposit_price_max = body.jeonse_price.max if body.jeonse_price else None,
+    task_id, _ = generate_recommendation(
+        db,
+        background_tasks,
+        request_user=user,
+        rec_name=rec_name,
+        region=region,
+        infrastructure_types=infrastructure_types,
+        school_district_types=school_district_types,
+        high_school_ids=high_school_ids,
+        sale_price_min=sale_price_min,
+        sale_price_max=sale_price_max,
+        jeonse_price_min=jeonse_price_min,
+        jeonse_price_max=jeonse_price_max,
     )
-    status = "in_progress"
-
-    # 추천 로직 백그라운드로 실행
-    # 해당 task_id 값이 이미 존재한다면(이미 같은 조건으로 추천한 적이 있다면) 추천 로직을 수행할 필요 없음
 
     return {
         "task_id": task_id,
-        "status": status,
     }
 
 
@@ -171,12 +169,12 @@ def get_recommendation_summary(
                 "jeonse_price": 440000000,
                 "infrastructure": [
                     {
-                        **InfrastructureTypeEnum.SUBWAY_STATION.meta,
+                        **InfrastructureTypeEnum.SUBWAY_STATION.meta._asdict(),
                         "distance": 0.6,
                         "walking_duration": 13,
                     },
                     {
-                        **InfrastructureTypeEnum.PARK.meta,
+                        **InfrastructureTypeEnum.PARK.meta._asdict(),
                         "distance": 1.5,
                         "walking_duration": 21,
                     },
@@ -200,12 +198,12 @@ def get_recommendation_summary(
                 "jeonse_price": 150000000,
                 "infrastructure": [
                     {
-                        **InfrastructureTypeEnum.SUBWAY_STATION.meta,
+                        **InfrastructureTypeEnum.SUBWAY_STATION.meta._asdict(),
                         "distance": 1.3,
                         "walking_duration": 18,
                     },
                     {
-                        **InfrastructureTypeEnum.PARK.meta,
+                        **InfrastructureTypeEnum.PARK.meta._asdict(),
                         "distance": 1.1,
                         "walking_duration": 15,
                     },
@@ -255,7 +253,7 @@ def get_recommendation_property_detail(
         "jeonse_price": 440000000,
         "infrastructure": [
             {
-                **InfrastructureTypeEnum.SUBWAY_STATION.meta,
+                **InfrastructureTypeEnum.SUBWAY_STATION.meta._asdict(),
                 "name": "효창공원앞",
                 "score": 93.3,
                 "distance": 0.6,
@@ -264,7 +262,7 @@ def get_recommendation_property_detail(
                 "longitude": 126.96173072,
             },
             {
-                **InfrastructureTypeEnum.PARK.meta,
+                **InfrastructureTypeEnum.PARK.meta._asdict(),
                 "name": "효창근린공원",
                 "score": 57.8,
                 "distance": 1.5,
