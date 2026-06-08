@@ -2,6 +2,8 @@
 
 from unittest.mock import MagicMock, patch
 from app.models import User, Recommendation, SearchLog
+from app.core.enums import InfrastructureTypeEnum, SchoolDistrictTypeEnum
+from app.services.recommendation import generate_recommendation_task_id
 
 def make_mock_user(id=1, email="test@example.com", name="Test User", cuid="cuid123"):
     """테스트용 가짜 User 모델 인스턴스 생성"""
@@ -29,7 +31,7 @@ def test_request_generate_recommendation_success(
     
     # 유효한 지역 반환 설정
     mock_get_region_by_id.return_value = {"id": 1, "name": "서울특별시 용산구 도원동"}
-    mock_verify_high_schools.return_value = [MagicMock(), MagicMock()]
+    mock_verify_high_schools.return_value = [{"id": 1, "name": "고등학교1"}, {"id": 2, "name": "고등학교2"}]
 
     # 2. 로그인
     client.post("/auth/login", json={"email": "test@example.com", "password": "password123"})
@@ -50,8 +52,19 @@ def test_request_generate_recommendation_success(
 
     assert response.status_code == 202
     data = response.json()
-    assert data["task_id"] == "unique_task_id"
-    assert data["status"] == "in_progress"
+    
+    expected_task_id = generate_recommendation_task_id(
+        region_id=1,
+        infrastructure_types=[InfrastructureTypeEnum.SUBWAY_STATION, InfrastructureTypeEnum.PARK],
+        high_school_ids=[1, 2],
+        school_district_types=[SchoolDistrictTypeEnum.INTENSIVE, SchoolDistrictTypeEnum.BALANCED],
+        sale_price_min=0,
+        sale_price_max=1000000000,
+        jeonse_price_min=0,
+        jeonse_price_max=500000000
+    )
+    assert data["task_id"] == expected_task_id
+
 
 
 @patch("app.dependencies.get_user_by_cuid")

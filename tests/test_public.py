@@ -14,6 +14,7 @@ def test_get_regions(client, mock_redis) -> None:
         "2": json.dumps({"id": 2, "name": "서울특별시 마포구 합정동"}, ensure_ascii=False),
     }
     
+    mock_redis.get.return_value = "0"
     mock_redis.hgetall.return_value = mock_regions_data
 
     # 2. API 호출
@@ -46,7 +47,7 @@ def test_get_infrastructure_types(client) -> None:
     # 각 인프라 아이템의 구조 검증
     labels = [x["label"] for x in data["items"]]
     assert "지하철역" in labels
-    assert "공원·녹지" in labels
+    assert "공원" in labels
     
     types = [x["type"] for x in data["items"]]
     assert "SUBWAY_STATION" in types
