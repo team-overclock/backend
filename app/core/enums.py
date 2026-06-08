@@ -68,7 +68,7 @@ _INFRASTRUCTURE_TYPE_META_MAP = {
     InfrastructureTypeEnum.SUBWAY_STATION: ("🚇", "지하철역", "가장 가까운 역까지 거리"),
     InfrastructureTypeEnum.LARGE_HOSPITAL: ("🏥", "대형 병원", "종합병원·대학병원 거리"),
     InfrastructureTypeEnum.LARGE_SUPERMARKET: ("🛒", "대형 마트", "마트·백화점 거리"),
-    InfrastructureTypeEnum.PARK: ("🌳", "공원·녹지", "근린공원·산책로 거리"),
+    InfrastructureTypeEnum.PARK: ("🌳", "공원", "근린공원·산책로 거리"),
 }
 
 

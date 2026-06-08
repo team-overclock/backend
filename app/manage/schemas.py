@@ -14,13 +14,13 @@ class BackgroundSuccessResponse(BaseModel):
 
 
 class DataDownloadStatusResponse(BaseModel):
-    """데이터 상태 조회 응답"""
+    """데이터 다운로드 상태 조회 응답"""
 
     curr_version: str | None
     downloading_version: str | None
 
 class DataInsertStatusResponse(BaseModel):
-    """데이터 상태 조회 응답"""
+    """데이터 삽입 상태 조회 응답"""
 
     has_region: bool
     has_property: bool

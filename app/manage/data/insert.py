@@ -21,7 +21,6 @@ from ...parser.df import read_pandas, read_shp_file
 
 
 PROGRESS_PRINT = 100
-DB_BATCH_SIZE = 1000
 
 
 # global variable
