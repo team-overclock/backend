@@ -27,6 +27,13 @@ class DataInsertStatusResponse(BaseModel):
     has_infrastructure: bool
 
 
+class RedisSyncStatusResponse(BaseModel):
+    """Redis와 데이터 동기화 상태 조회 응답"""
+
+    regions_total: int
+    high_schools_total: int
+
+
 class ScoresStatusResponse(BaseModel):
     """점수 데이터 상태 조회 응답"""
 
