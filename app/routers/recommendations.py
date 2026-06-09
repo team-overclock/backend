@@ -1,16 +1,17 @@
 """추천 엔드포인트 라우트 모듈."""
 
 from typing import Union
-from fastapi import APIRouter, Depends, BackgroundTasks, status
+from fastapi import APIRouter, Depends, BackgroundTasks, Request, status
+from fastapi.exceptions import HTTPException
 from sqlalchemy.orm import Session
 
 from ..redis import get_redis
 from ..database import get_db
 from ..core.enums import SchoolDistrictTypeEnum, InfrastructureTypeEnum
 from ..core.validate import verify_region, verify_high_schools
-from ..dependencies import only_self_access, get_current_recommendation, get_current_search_log
-from ..models import User, SearchLog, Recommendation
-from ..crud.service import get_high_schools
+from ..dependencies import only_self_access, get_current_search_log
+from ..models import User, SearchLog, Property, Infrastructure
+from ..crud.service import get_high_school_map, get_region_by_name
 from ..schemas.error import RegionError
 from ..schemas.common import TaskID, PK_AI
 from ..schemas.service import (
@@ -67,7 +68,7 @@ def request_generate_recommendation(
     jeonse_price_min = body.jeonse_price.min if body.jeonse_price else None
     jeonse_price_max = body.jeonse_price.max if body.jeonse_price else None
 
-    task_id, _ = generate_recommendation(
+    rec = generate_recommendation(
         db,
         background_tasks,
         request_user=user,
@@ -83,7 +84,7 @@ def request_generate_recommendation(
     )
 
     return {
-        "task_id": task_id,
+        "task_id": rec.task_id,
     }
 
 
@@ -111,105 +112,69 @@ def change_recommendation_name(
 )
 def get_recommendation_summary(
     task_id: TaskID,
-    recommendation: Recommendation = Depends(get_current_recommendation),
+    search_log: SearchLog = Depends(get_current_search_log),
     db: Session = Depends(get_db),
     redis = Depends(get_redis),
 ) -> RecommendationReport:
     """추천 결과 요약 정보 조회"""
 
-    print("################### DEBUG: Get Recommendation ###################")
-    print("task_id:", task_id)
-    print("추천 정보:", recommendation)
-    print("################### DEBUG END: Get Recommendation ###################")
+    recommendation = search_log.recommendation
+    high_schools = get_high_school_map(redis)
 
-    return {
-        "task_id": "full_task_id",
-        "status": "completed",
-        "total": 2,
-        "request_data": {
-            "name": "this is custom name",
-            "region": {
-                "id": 1,
-                "name": "서울특별시 용산구 도원동",
+    in_progress = recommendation.in_progress
+    top_properties = recommendation.top_properties
+    request_data = {
+        "name": search_log.name,
+        "region": get_region_by_name(redis, recommendation.region) if recommendation.region else None,
+        "infrastructure_types": [InfrastructureTypeEnum[x].meta for x in recommendation.infrastructure_priorities],
+        "high_schools": [high_schools[x] for x in recommendation.high_school_ids if high_schools.get(x)],
+        "school_districts": [SchoolDistrictTypeEnum[x].meta for x in recommendation.school_district_types],
+        "sale_price": {
+            "min": recommendation.sale_price_min,
+            "max": recommendation.sale_price_max,
+        },
+        "jeonse_price": {
+            "min": recommendation.jeonse_price_min,
+            "max": recommendation.jeonse_price_max,
+        },
+    }
+
+    db_properties = db.query(Property).filter(Property.id.in_([p["id"] for p in top_properties])).all()
+    property_map = {prop.id: prop for prop in db_properties}
+
+    properties = [
+        {
+            **p,
+            "region": get_region_by_name(redis, p["region"]),
+            "address": {
+                "land_lot": property_map[p["id"]].land_lot_address,
+                "road_name": property_map[p["id"]].road_name_address,
+                "latitude": property_map[p["id"]].latitude,
+                "longitude": property_map[p["id"]].longitude,
             },
-            "infrastructure_types": [
-                InfrastructureTypeEnum.SUBWAY_STATION.meta,
-                InfrastructureTypeEnum.PARK.meta,
-            ],
-            "high_schools": get_high_schools(redis)[0:3],
-            "school_districts": [
-                SchoolDistrictTypeEnum.INTENSIVE.meta,
-                SchoolDistrictTypeEnum.BALANCED.meta,
-            ],
             "sale_price": {
-                "min": 0,
-                "max": 999999999999,
+                "min": p["sale_price_min"],
+                "max": p["sale_price_max"],
             },
             "jeonse_price": {
-                "min": 0,
-                "max": 999999999999,
+                "min": p["jeonse_price_min"],
+                "max": p["jeonse_price_max"],
             },
-        },
-        "properties": [
-            {
-                "id": 1,
-                "name": "삼성래미안",
-                "score": 87,
-                "region": {
-                    "id": 1,
-                    "name": "서울특별시 용산구 도원동",
-                },
-                "address": {
-                    "land_lot": "서울특별시 용산구 도원동 23",
-                    "road_name": "서울특별시 용산구 새창로 70",
-                    "latitude": 37.53830000,
-                    "longitude": 126.95532000,
-                },
-                "sale_price": 1200000000,
-                "jeonse_price": 440000000,
-                "infrastructure": [
-                    {
-                        **InfrastructureTypeEnum.SUBWAY_STATION.meta._asdict(),
-                        "distance": 0.6,
-                        "walking_duration": 13,
-                    },
-                    {
-                        **InfrastructureTypeEnum.PARK.meta._asdict(),
-                        "distance": 1.5,
-                        "walking_duration": 21,
-                    },
-                ],
-            },
-            {
-                "id": 2,
-                "name": "도원",
-                "score": 79.3,
-                "region": {
-                    "id": 1,
-                    "name": "서울특별시 용산구 도원동",
-                },
-                "address": {
-                    "land_lot": "서울특별시 용산구 도원동 3-7",
-                    "road_name": "서울특별시 용산구 새창로12길 11-15",
-                    "latitude": 37.53895000,
-                    "longitude": 126.95842000,
-                },
-                "sale_price": None,
-                "jeonse_price": 150000000,
-                "infrastructure": [
-                    {
-                        **InfrastructureTypeEnum.SUBWAY_STATION.meta._asdict(),
-                        "distance": 1.3,
-                        "walking_duration": 18,
-                    },
-                    {
-                        **InfrastructureTypeEnum.PARK.meta._asdict(),
-                        "distance": 1.1,
-                        "walking_duration": 15,
-                    },
-                ],
-            },
-        ],
+            "infrastructure": [
+                {
+                    **InfrastructureTypeEnum[infra["type"]].meta._asdict(),
+                    **infra,
+                } for infra in p["infrastructure_scores"][:2]
+            ],
+        } for p in top_properties
+    ]
+
+    return {
+        "task_id": task_id,
+        "status": "in_progress" if in_progress else "completed",
+        "total": len(properties),
+        "request_data": request_data,
+        "properties": properties,
     }
 
 
@@ -221,56 +186,58 @@ def get_recommendation_summary(
 def get_recommendation_property_detail(
     task_id: TaskID,
     property_id: PK_AI,
+    request: Request,
     db: Session = Depends(get_db),
-    recommendation: Recommendation = Depends(get_current_recommendation),
+    redis = Depends(get_redis),
+    user: User = Depends(only_self_access),
+    search_log: SearchLog = Depends(get_current_search_log),
 ) -> RecommendationReportItemDetail:
     """추천 결과 중 특정 매물의 상세 정보 조회"""
 
-    print("################### DEBUG: Get Recommendation ###################")
-    properties = recommendation.top_properties
-    property = properties[0] if len(properties) > 0 else None
-    print("task_id:", task_id)
-    print("property_id:", property_id)
-    print("추천 정보:", recommendation)
-    print("매물 정보:", property)
-    print("################### DEBUG END: Get Recommendation ###################")
+    recommendation = search_log.recommendation
+
+    search_log = get_current_search_log(task_id, request, db, user)
+    ids = [x["id"] for x in search_log.recommendation.top_properties]
+    if property_id not in ids:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+        )
+
+    db_property = db.query(Property).filter(Property.id == property_id).first()
+    top_property_map = {prop["id"]: prop for prop in recommendation.top_properties}
+    info = top_property_map[property_id]
+
+    db_infras = db.query(Infrastructure).filter(Infrastructure.id.in_([i["id"] for i in info["infrastructure_scores"]])).all()
+    infra_map = {infra.id: infra for infra in db_infras}
+    infrastructure = [
+        {
+            **InfrastructureTypeEnum[infra["type"]].meta._asdict(),
+            **infra,
+            "latitude": infra_map[infra["id"]].latitude,
+            "longitude": infra_map[infra["id"]].longitude,
+        } for infra in info["infrastructure_scores"]
+    ]
 
     return {
-        "id": 1,
-        "name": "삼성래미안",
-        "score": 87,
-        "region": {
-            "id": 1,
-            "name": "서울특별시 용산구 도원동",
-        },
+        "id": info["id"],
+        "name": info["name"],
+        "score": info["score"],
+        "region": get_region_by_name(redis, info["region"]),
         "address": {
-            "land_lot": "서울특별시 용산구 도원동 23",
-            "road_name": "서울특별시 용산구 새창로 70",
-            "latitude": 37.53830000,
-            "longitude": 126.95532000,
+            "land_lot": db_property.land_lot_address,
+            "road_name": db_property.road_name_address,
+            "latitude": db_property.latitude,
+            "longitude": db_property.longitude,
         },
-        "sale_price": 1200000000,
-        "jeonse_price": 440000000,
-        "infrastructure": [
-            {
-                **InfrastructureTypeEnum.SUBWAY_STATION.meta._asdict(),
-                "name": "효창공원앞",
-                "score": 93.3,
-                "distance": 0.6,
-                "walking_duration": 13,
-                "latitude": 37.53895534,
-                "longitude": 126.96173072,
-            },
-            {
-                **InfrastructureTypeEnum.PARK.meta._asdict(),
-                "name": "효창근린공원",
-                "score": 57.8,
-                "distance": 1.5,
-                "walking_duration": 21,
-                "latitude": 37.54523000,
-                "longitude": 126.95993000,
-            },
-        ],
+        "sale_price": {
+            "min": info["sale_price_min"],
+            "max": info["sale_price_max"],
+        },
+        "jeonse_price": {
+            "min": info["jeonse_price_min"],
+            "max": info["jeonse_price_max"],
+        },
+        "infrastructure": infrastructure,
     }
 
 

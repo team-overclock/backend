@@ -96,6 +96,14 @@ def get_regions_by_depth(redis: Redis, depth: int):
     result = fetch_hgetall(redis, hkey)
     return result
 
+def get_region_by_name(redis: Redis, name: str):
+    """주어진 이름에 해당하는 동네 목록을 반환하는 함수"""
+    regions = get_regions(redis, include_depth=False)
+    for region in regions:
+        if region["name"] == name:
+            return region
+    return None
+
 def get_region_by_source_id(db: Session, source_id: int):
     """주어진 source_id와 depth에 해당하는 동네 목록을 반환하는 함수"""
     return db.query(Region).filter(Region.source_id == source_id, Region.deleted_at.is_(None)).first()
@@ -124,13 +132,13 @@ def sync_high_schools_to_redis(db: Session, redis: Redis):
     redis.hset(HIGH_SCHOOLS_ALL_KEY, mapping=mapping)
     return len(mapping)
 
-def get_high_schools(redis: Redis):
+def get_high_schools(redis: Redis, sort: bool = True):
     """고등학교 인프라 목록을 Redis에서 조회하여 반환하는 함수"""
-    return fetch_hgetall(redis, HIGH_SCHOOLS_ALL_KEY, sort=False)
+    return fetch_hgetall(redis, HIGH_SCHOOLS_ALL_KEY, sort=sort)
 
-def get_high_school_map(redis: Redis, sort: bool = True, **extra_dict):
+def get_high_school_map(redis: Redis, sort: bool = True):
     """고등학교 인프라 목록을 Redis에서 조회하여 반환하는 함수"""
-    result = get_high_schools(redis)
+    result = get_high_schools(redis, sort=sort)
     school_map = {s["id"]: s for s in result}
     return school_map
 

@@ -1,3 +1,4 @@
+import math
 import json
 import hashlib
 from enum import Enum
@@ -61,6 +62,7 @@ def _main(
 ) -> None:
     # 사용자가 선택한 인프라 유형 순서, 순서대로 가중치 적용 (1개 이상 7개 이하)
     infra_types: list[str] = recommendation.infrastructure_priorities
+    infra_types_set: set[str] = set(infra_types)
 
     # infra_types 내 학교 유형이 있을 때만 school_district_types가 의미 있음
     # depth=1 region의 academy_count 기준: 상위 15% → INTENSIVE, 15~50% → BALANCED, 나머지 → RELAXED
@@ -132,8 +134,10 @@ def _main(
     inner_stmt = (
         select(
             PropertyInfrastructure.property_id,
+            PropertyInfrastructure.infrastructure_id,
             PropertyInfrastructure.infrastructure_type,
             PropertyInfrastructure.score,
+            PropertyInfrastructure.distance,
             Infrastructure.name.label("infra_name"),
             rn_col,
         )
@@ -164,8 +168,10 @@ def _main(
     best_rows = db.execute(
         select(
             ranked_subq.c.property_id,
+            ranked_subq.c.infrastructure_id,
             ranked_subq.c.infrastructure_type,
             ranked_subq.c.score,
+            ranked_subq.c.distance,
             ranked_subq.c.infra_name,
         )
         .where(ranked_subq.c.rn == 1)
@@ -183,15 +189,21 @@ def _main(
         if t.value not in weight_map:
             weight_map[t.value] = unselected_weight
 
+    # 모든 인프라 score=100일 때의 이론적 최댓값
+    max_score = 100.0 * sum(weight_map.values())
+
     property_infra_scores: dict[int, list[dict]] = defaultdict(list)
     property_total_scores: dict[int, float] = defaultdict(float)
     for row in best_rows:
         infra_type_str = getattr(row.infrastructure_type, "value", row.infrastructure_type)
         raw_score = float(row.score)
         property_infra_scores[row.property_id].append({
+            "id": row.infrastructure_id,
             "type": infra_type_str,
             "name": row.infra_name,
             "score": raw_score,
+            "distance": row.distance,
+            "walking_duration": math.ceil(row.distance / 60),
         })
         property_total_scores[row.property_id] += raw_score * weight_map.get(infra_type_str, 0)
 
@@ -244,7 +256,7 @@ def _main(
         final_properties.append({
             "id": pid,
             "name": detail.name,
-            "score": property_total_scores[pid],
+            "score": property_total_scores[pid] / max_score * 100,
             "region": detail.region_name,
             "sale_price_min": p.get("sale_price_min"),
             "sale_price_max": p.get("sale_price_max"),
@@ -253,8 +265,7 @@ def _main(
             "naver_url": p.get("naver_url"),
             "infrastructure_scores": sorted(
                 property_infra_scores[pid],
-                key=lambda x: x["score"],
-                reverse=True,
+                key=lambda x: (x["type"] not in infra_types_set, -x["score"]),
             ),
         })
 
@@ -290,6 +301,8 @@ def _bg_run(
         conn.commit()
     finally:
         # DB 세션 닫기
+        rec.in_progress = False
+        conn.commit()
         if not db: conn.close()
 
 
@@ -340,28 +353,29 @@ def generate_recommendation(
     if recommendation:
         if recommendation.failed_at:
             # 이전에 실패했다면 다시 로직 실행
-            failed = True
             recommendation.failed_at = None
+            failed = True
 
-    if not recommendation or failed:
-        if not recommendation:
-            recommendation = create_recommendation(
-                db,
-                task_id=task_id,
-                **request_data,
-            )
+    if not recommendation:
+        recommendation = create_recommendation(
+            db,
+            task_id=task_id,
+            **request_data,
+        )
     recommendation.add_user(request_user, rec_name)
+    in_progress = recommendation.in_progress
+    recommendation.in_progress = True
     db.commit()
 
-    # 테스트용, 테스트 끝나면 들여쓰기 1번 추가
-    if background_tasks:
-        # 백그라운드에서 비동기로 추천 생성 실행
-        background_tasks.add_task(
-            _bg_run,
-            task_id=task_id,
-        )
-    else:
-        # 스크립트로 실행 시 동기적으로 추천 생성 실행
-        _bg_run(task_id, db=db)
+    if in_progress is not True and (failed or recommendation.finished_at is None):
+        if background_tasks:
+            # 백그라운드에서 비동기로 추천 생성 실행
+            background_tasks.add_task(
+                _bg_run,
+                task_id=task_id,
+            )
+        else:
+            # 스크립트로 실행 시 동기적으로 추천 생성 실행
+            _bg_run(task_id, db=db)
 
-    return task_id, recommendation
+    return recommendation

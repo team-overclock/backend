@@ -77,10 +77,11 @@ def generate_seed_recommendations(
     random.shuffle(selected_infra_types)
 
     rec = None
-    created_at, finished_at = random_range(start_ts, end_ts)
-    created_at = datetime.fromtimestamp(created_at)
+    created_at, finished_at = map(datetime.fromtimestamp, random_range(start_ts, end_ts))
+    updated_at = finished_at + timedelta(minutes=random.randint(100, 1000)) if random.choice([True, [False] * 4]) else None
+
     for user in request_users:
-        _, rec = generate_recommendation(
+        rec = generate_recommendation(
             db,
             background_tasks=None,
             task_id=task_id,
@@ -103,13 +104,8 @@ def generate_seed_recommendations(
         ).first()
         search_log.last_viewed_at = last_viewed_at
 
-    failed_at = (created_at + timedelta(minutes=random.randint(1, 3))) if random.choice([True] + [False] * 4) else None
-    finished_at = datetime.fromtimestamp(finished_at) if not failed_at and random.choice([True, False]) else None
-    updated_at = finished_at + timedelta(minutes=random.randint(100, 1000)) if finished_at and random.choice([True, [False] * 4]) else None
-
     rec.created_at = created_at
     rec.finished_at = finished_at
-    rec.failed_at = failed_at
     rec.updated_at = updated_at
 
     db.commit()

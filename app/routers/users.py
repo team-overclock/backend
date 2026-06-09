@@ -1,6 +1,5 @@
 """사용자 엔드포인트 라우트 모듈."""
 
-from datetime import datetime
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
@@ -9,7 +8,7 @@ from ..database import get_db
 from ..redis import get_redis
 from ..core.enums import AppErrorCodeEnum, SchoolDistrictTypeEnum, InfrastructureTypeEnum
 from ..core.exception import AppException
-from ..crud.service import get_high_schools
+from ..crud.service import get_high_school_map, get_region_by_name
 from ..schemas.error import IncorrectCurrentPasswordError
 from ..schemas.user import UserInfoUpdateRequest, UserInfo, UserPasswordChangeRequest
 from ..schemas.service import UserRecommendations
@@ -96,73 +95,33 @@ def user_recommendations(
 ) -> UserRecommendations:
     """추천 요청 목록 조회"""
 
-    print("################### DEBUG: User Recommendations ###################")
-    print("Received user recommendations request for user_id:", user.id)
-    print("Retrieved user recommendations:", [x.recommendation_id for x in user_recommendations])
-    print("################### DEBUG END: User Recommendations ###################")
+    high_schools = get_high_school_map(redis)
+    items = []
+    for search_log in user_recommendations:
+        recommendation = search_log.recommendation
+        items.append({
+            "task_id": search_log.task_id,
+            "status": "in_progress" if recommendation.in_progress else "completed",
+            "requested_at": search_log.requested_at,
+            "last_viewed_at": search_log.last_viewed_at,
+            "request_data": {
+                "name": search_log.name,
+                "region": get_region_by_name(redis, recommendation.region) if recommendation.region else None,
+                "infrastructure_types": [InfrastructureTypeEnum[x].meta for x in recommendation.infrastructure_priorities],
+                "high_schools": [high_schools[x] for x in recommendation.high_school_ids if high_schools.get(x)],
+                "school_districts": [SchoolDistrictTypeEnum[x].meta for x in recommendation.school_district_types],
+                "sale_price": {
+                    "min": recommendation.sale_price_min,
+                    "max": recommendation.sale_price_max,
+                },
+                "jeonse_price": {
+                    "min": recommendation.jeonse_price_min,
+                    "max": recommendation.jeonse_price_max,
+                },
+            },
+        })
 
     return {
-        "total": 2,
-        "items": [
-            {
-                "requested_at": datetime.now(),
-                "last_viewed_at": datetime.now(),
-                "task_id": "unique_task_id",
-                "status": "completed",
-                "request_data": {
-                    "name": "사용자 지정 추천 이름",
-                    "region": {
-                        "id": 1,
-                        "name": "서울특별시 용산구 도원동"
-                    },
-                    "infrastructure_types": [
-                        InfrastructureTypeEnum.SUBWAY_STATION.meta,
-                    ],
-                    "high_schools": [
-                        get_high_schools(redis)[0],
-                    ],
-                    "school_districts": [
-                        SchoolDistrictTypeEnum.INTENSIVE.meta,
-                    ],
-                    "sale_price": {
-                        "min": 0,
-                        "max": 999999999999,
-                    },
-                    "jeonse_price": {
-                        "min": 0,
-                        "max": 999999999999,
-                    },
-                },
-            },
-            {
-                "requested_at": datetime.now(),
-                "last_viewed_at": datetime.now(),
-                "task_id": "unique_task_idw",
-                "status": "in_progress",
-                "request_data": {
-                    "name": None,
-                    "region": {
-                        "id": 2,
-                        "name": "서울특별시 용산구 새창로",
-                    },
-                    "infrastructure_types": [
-                        InfrastructureTypeEnum.SUBWAY_STATION.meta,
-                        InfrastructureTypeEnum.PARK.meta,
-                    ],
-                    "high_schools": [],
-                    "school_districts": [
-                        SchoolDistrictTypeEnum.INTENSIVE.meta,
-                        SchoolDistrictTypeEnum.RELAXED.meta,
-                    ],
-                    "sale_price": {
-                        "min": 0,
-                        "max": 999999999999,
-                    },
-                    "jeonse_price": {
-                        "min": 0,
-                        "max": 999999999999,
-                    },
-                },
-            },
-        ],
+        "total": len(items),
+        "items": items,
     }

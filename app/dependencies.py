@@ -6,11 +6,10 @@ from .core.enums import AppErrorCodeEnum
 from .core.exception import AppException, RedirectException
 from .core.session import get_session
 from .database import get_db
-from .models import User, SearchLog
+from .models import User
 from .schemas.auth import UserSession
 from .crud.user import get_user_by_cuid
 from .crud.service import (
-    get_recommendations_by_user_id_and_task_id,
     get_search_log_by_user_id_and_task_id,
     get_search_log_by_user_id,
 )
@@ -47,22 +46,6 @@ def only_self_access(
             status_code=status.HTTP_404_NOT_FOUND,
         )
     return user
-
-def get_current_recommendation(
-    task_id: str,
-    request: Request,
-    db: Session = Depends(get_db),
-    user: User = Depends(only_self_access),
-):
-    """
-    `task_id` 값으로 시작하는 추천이 현재 세션의 사용자에게 속한 것인지 검증하는 의존성 함수.
-    - task_id에 해당하는 추천을 조회할 수 없거나 2개 이상 존재하면 404 에러를 발생시킴
-    - task_id가 full id가 아닐 경우 302 리다이렉션 처리
-    """
-
-    search_log = get_current_search_log(task_id, request, db, user)
-    recommendation = search_log.recommendation
-    return search_log.recommendation
 
 def get_current_search_log(
     task_id: str,
