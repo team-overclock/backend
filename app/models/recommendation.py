@@ -1,5 +1,5 @@
 from typing import TYPE_CHECKING
-from sqlalchemy import CheckConstraint, Column, DateTime, JSON, String
+from sqlalchemy import Column, DateTime, JSON, String, Boolean
 from sqlalchemy.dialects.mysql import INTEGER, BIGINT
 from sqlalchemy.orm import Mapped, relationship
 from sqlalchemy.sql import func
@@ -39,18 +39,19 @@ class Recommendation(Base):
     id = Column(INTEGER(unsigned=True), primary_key=True, index=True)
     task_id = Column(String(64), unique=True, nullable=False)
     region = Column(String(255))
-    infrastructure_priorities: list[str] = Column(JSON(none_as_null=True), nullable=False, default={})
+    infrastructure_priorities: list[str] = Column(JSON(none_as_null=True), nullable=False, default=[])
     sale_price_min = Column(BIGINT(unsigned=True))
     sale_price_max = Column(BIGINT(unsigned=True))
     jeonse_price_min = Column(BIGINT(unsigned=True))
     jeonse_price_max = Column(BIGINT(unsigned=True))
-    top_properties: list[dict] = Column(JSON(none_as_null=True), nullable=True, default={})
+    top_properties: list[dict] = Column(JSON(none_as_null=True), nullable=True, default=[])
     school_district_types: list[str] = Column(JSON(none_as_null=True), nullable=True, default=[])
     high_school_ids: list[int] = Column(JSON(none_as_null=True), nullable=True, default=[])
     created_at = Column(DateTime, nullable=False, default=func.now())
     finished_at = Column(DateTime)
     updated_at = Column(DateTime)
     failed_at = Column(DateTime)
+    in_progress = Column(Boolean, nullable=False, default=True)
 
     users: Mapped[list["SearchLog"]] = relationship("SearchLog", back_populates="recommendation", cascade="all, delete-orphan")
 

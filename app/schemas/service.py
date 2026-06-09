@@ -134,8 +134,8 @@ class RecommendationReportItemSummary(BaseModel):
     score: Score
     region: RegionItem = Field(description="동네 이름")
     address: AddressDetails = Field(description="매물 주소 정보")
-    sale_price: int | None = Field(description="매물의 매매 최소 가격")
-    jeonse_price: int | None = Field(description="매물의 전세 최소 가격")
+    sale_price: PriceRange = Field(description="매물의 매매 가격 범위")
+    jeonse_price: PriceRange = Field(description="매물의 전세 가격 범위")
     infrastructure: list[RecommendationReportItemInfrastructureSummary] = Field(description="매물 주변 인프라 요약 정보 (최대 2개)", max_length=2)
 
 class RecommendationReport(RecommendationCreateResponse):

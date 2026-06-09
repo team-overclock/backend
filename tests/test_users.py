@@ -1,17 +1,21 @@
 """사용자(users) 라우터 엔드포인트 테스트."""
 
 from unittest.mock import MagicMock, patch
-from app.models import User
+from app.models import User, SearchLog, Recommendation
+from datetime import datetime
 
 
 def make_mock_user(id=1, email="test@example.com", name="Test User", cuid="cuid123"):
     """테스트용 가짜 User 모델 인스턴스 생성"""
-    user = MagicMock(spec=User)
-    user.id = id
-    user.email = email
-    user.name = name
-    user.cuid = cuid
-    user.verify_password.return_value = True
+    user = User(
+        id=id,
+        email=email,
+        name=name,
+        cuid=cuid,
+    )
+    user.password = "password123"
+    user.created_at = datetime.utcnow()
+    user.updated_at = datetime.utcnow()
     return user
 
 
@@ -88,7 +92,7 @@ def test_change_password_success(mock_get_user_by_email, mock_get_user_by_cuid, 
     )
 
     assert response.status_code == 204
-    assert mock_user.password == "newpassword123"
+    assert mock_user.verify_password("newpassword123")
     mock_db.commit.assert_called_once()
 
 
@@ -97,8 +101,6 @@ def test_change_password_success(mock_get_user_by_email, mock_get_user_by_cuid, 
 def test_change_password_invalid_current(mock_get_user_by_email, mock_get_user_by_cuid, client) -> None:
     """현재 비밀번호가 틀려 비밀번호 변경에 실패하는 케이스 테스트."""
     mock_user = make_mock_user()
-    # 로그인 시("password123")는 True를 반환하고, 비밀번호 변경 시("wrongpassword")는 False를 반환하도록 세팅
-    mock_user.verify_password.side_effect = lambda password: password == "password123"
     mock_get_user_by_email.return_value = mock_user
     mock_get_user_by_cuid.return_value = mock_user
 
@@ -126,16 +128,67 @@ def test_get_user_recommendations(mock_get_user_by_email, mock_get_user_by_cuid,
     mock_get_user_by_email.return_value = mock_user
     mock_get_user_by_cuid.return_value = mock_user
 
-    # 고등학교 mock 데이터 설정
-    import json
-    mock_redis.hgetall.return_value = {
-        "1": json.dumps({
-            "id": 1,
-            "name": "서울고등학교",
-            "latitude": 37.1234,
-            "longitude": 127.1234
-        })
-    }
+    # Recommendation & SearchLog mock 데이터 생성
+    mock_rec1 = Recommendation(
+        task_id="task_id_1",
+        region="서울특별시 용산구 도원동",
+        infrastructure_priorities=["SUBWAY_STATION"],
+        school_district_types=["INTENSIVE"],
+        high_school_ids=[1],
+        sale_price_min=0,
+        sale_price_max=1000000000,
+        jeonse_price_min=0,
+        jeonse_price_max=500000000,
+        in_progress=False,
+    )
+
+    mock_rec2 = Recommendation(
+        task_id="task_id_2",
+        region="서울특별시 마포구 합정동",
+        infrastructure_priorities=["SUBWAY_STATION"],
+        school_district_types=["BALANCED"],
+        high_school_ids=[1],
+        sale_price_min=0,
+        sale_price_max=1000000000,
+        jeonse_price_min=0,
+        jeonse_price_max=500000000,
+        in_progress=True,
+    )
+
+    mock_log1 = SearchLog(
+        task_id="task_id_1",
+        name="첫번째 추천",
+        user_id=mock_user.id,
+        recommendation=mock_rec1,
+    )
+    mock_log1.requested_at = datetime.utcnow()
+    mock_log1.last_viewed_at = datetime.utcnow()
+
+    mock_log2 = SearchLog(
+        task_id="task_id_2",
+        name="두번째 추천",
+        user_id=mock_user.id,
+        recommendation=mock_rec2,
+    )
+    mock_log2.requested_at = datetime.utcnow()
+    mock_log2.last_viewed_at = datetime.utcnow()
+
+    mock_db.query().join().filter().all.return_value = [mock_log1, mock_log2]
+
+    # Redis 모킹 설정
+    import json as py_json
+    def mock_hgetall(key):
+        if key == "regions:all":
+            return {
+                "1": py_json.dumps({"id": 1, "name": "서울특별시 용산구 도원동"}, ensure_ascii=False),
+                "2": py_json.dumps({"id": 2, "name": "서울특별시 마포구 합정동"}, ensure_ascii=False),
+            }
+        elif key == "high_schools:all":
+            return {
+                "1": py_json.dumps({"id": 1, "name": "서울고등학교", "latitude": 37.1234, "longitude": 127.1234}, ensure_ascii=False),
+            }
+        return {}
+    mock_redis.hgetall.side_effect = mock_hgetall
 
     # 1. 로그인
     client.post("/auth/login", json={"email": "test@example.com", "password": "password123"})
@@ -145,7 +198,7 @@ def test_get_user_recommendations(mock_get_user_by_email, mock_get_user_by_cuid,
     assert response.status_code == 200
     data = response.json()
     
-    # 더미 데이터 응답 포맷 검증
+    # 추천 요청 목록 구조 및 실제 값 검증
     assert "total" in data
     assert "items" in data
     assert len(data["items"]) == 2
