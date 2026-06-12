@@ -146,7 +146,7 @@ def get_high_school_map(redis: Redis, sort: bool = True):
 def create_recommendation(
     db: Session,
     task_id: str,
-    region: str,
+    region_name: str,
     infrastructure_types: list[str] | None,
     school_district_types: list[SchoolDistrictTypeEnum] | None,
     high_school_ids: list[int] | None,
@@ -165,7 +165,7 @@ def create_recommendation(
 
     rec = Recommendation(
         task_id=task_id,
-        region=region,
+        region=region_name,
         school_district_types=school_district_types,
         high_school_ids=high_school_ids,
         sale_price_min=sale_price_min,
@@ -207,4 +207,6 @@ def get_search_log_by_user_id(db: Session, user_id: int) -> list[SearchLog]:
         SearchLog.recommendation_id == Recommendation.id,
     ).filter(
         SearchLog.user_id == user_id,
+    ).order_by(
+        SearchLog.requested_at.desc()
     ).all()

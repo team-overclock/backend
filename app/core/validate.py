@@ -2,8 +2,10 @@ from redis import Redis
 from fastapi import status
 
 from ..crud.service import get_region_by_id, get_regions, get_high_school_map
+from ..schemas.service import RecommendationCreateRequest
 from ..core.enums import (
     AppErrorCodeEnum,
+    InfrastructureTypeEnum,
 )
 from ..core.exception import AppException
 
@@ -57,3 +59,24 @@ def verify_high_schools(redis: Redis, high_school_ids: list[int]) -> list[dict]:
             },
         )
     return schools
+
+
+def verify_recommendation_request_data(
+    redis: Redis,
+    body: RecommendationCreateRequest,
+):
+    region = verify_region(redis, body.region_id) if body.region_id else {}
+
+    return {
+        "region_id": region.get("id"),
+        "region_name": region.get("name"),
+        "infrastructure_types": body.infrastructure_types,
+        # 학군 유형은 인프라 유형 내 초/중/고등학교 중 1개 이상 포함된 경우에만 사용
+        "school_district_types": body.school_district_types if any([x in (InfrastructureTypeEnum.ELEMENTARY_SCHOOL, InfrastructureTypeEnum.MIDDLE_SCHOOL, InfrastructureTypeEnum.HIGH_SCHOOL) for x in body.infrastructure_types]) else [],
+        # 고등학교 목록은 인프라 유형 내 고등학교가 포함된 경우에만 사용
+        "high_school_ids": [s["id"] for s in verify_high_schools(redis, body.high_school_ids)] if body.high_school_ids and InfrastructureTypeEnum.HIGH_SCHOOL in body.infrastructure_types else [],
+        "sale_price_min": body.sale_price.min if body.sale_price else None,
+        "sale_price_max": body.sale_price.max if body.sale_price else None,
+        "jeonse_price_min": body.jeonse_price.min if body.jeonse_price else None,
+        "jeonse_price_max": body.jeonse_price.max if body.jeonse_price else None,
+    }

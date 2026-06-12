@@ -2,8 +2,9 @@
 
 cd /app
 
-if [ -f "requirements.txt" ]; then
+if [ -f ".initialized" ]; then
 	exit 0
 fi
 
-mv /defaults/* .
+cp -a /defaults/. .
+touch .initialized

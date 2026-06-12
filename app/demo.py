@@ -1,26 +1,22 @@
 """데모용 함수 모음"""
 
-import os
-from dotenv import load_dotenv
 from fastapi import APIRouter, Depends, Request, status
 from fastapi.exceptions import HTTPException
 from sqlalchemy.orm import Session
 
 from .config import GUEST_LOGIN_ENABLE
 from .database import get_db
+from .models import User
 from .core import session
-from .core.exception import AppException
-from .crud.user import create_user
+from .crud.user import get_user_by_cuid
 from .schemas.error import NotFoundError
-from .schemas.auth import UserCreateRequest
 from .schemas.user import UserInfo
 
 
-load_dotenv()
-
-GUEST_EMAIL = os.getenv("GUEST_EMAIL") or "guest@example.com"
-GUEST_USERNAME = os.getenv("GUEST_USERNAME") or None
-GUEST_PASSWORD = os.getenv("GUEST_PASSWORD") or "guest"
+GUEST_CUID = "guest"
+GUEST_EMAIL = "guest@example.com"
+GUEST_USERNAME = "guest"
+GUEST_PASSWORD = "guest"
 
 
 # fns
@@ -35,11 +31,16 @@ def create_guest_user(db: Session):
             status_code=status.HTTP_404_NOT_FOUND,
         )
 
-    return create_user(db, UserCreateRequest(
-        name=GUEST_USERNAME,
-        email=GUEST_EMAIL,
-        password=GUEST_PASSWORD,
-    ))
+    created = False
+    guest = get_user_by_cuid(db, GUEST_CUID) or User()
+    guest.cuid = GUEST_CUID
+    guest.name = GUEST_USERNAME
+    guest.email = GUEST_EMAIL
+    guest.password = GUEST_PASSWORD
+    db.add(guest)
+    db.commit()
+    db.refresh(guest)
+    return guest, created
 
 def get_guest_user(db: Session):
     """

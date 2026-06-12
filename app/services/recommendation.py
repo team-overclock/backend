@@ -7,14 +7,17 @@ from collections import defaultdict
 from fastapi import BackgroundTasks
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
+from redis import Redis
 
 from ..database import SessionLocal
 from ..models import User, Recommendation, Property, Infrastructure, PropertyInfrastructure, Region
 from ..core.enums import SchoolDistrictTypeEnum, InfrastructureTypeEnum
+from ..core.validate import verify_recommendation_request_data
+from ..schemas.service import RecommendationCreateRequest
 from ..crud.service import get_recommendation_by_task_id, create_recommendation
 
 
-def generate_recommendation_task_id(
+def _generate_recommendation_task_id(
     region_id: int | None,
     infrastructure_types: list[InfrastructureTypeEnum],
     high_school_ids: list[int] | None,
@@ -46,7 +49,6 @@ def generate_recommendation_task_id(
         "jeonse_price_min": jeonse_price_min,
         "jeonse_price_max": jeonse_price_max,
     }
-
     values = {name: _serialize_val(val) for name, val in params.items() if val is not None}
 
     # 입력된 순서를 유지하면서 JSON 직렬화 후 SHA256 hash 생성
@@ -179,7 +181,8 @@ def _main(
 
     # Step 4: 인프라 유형별 가중치 적용 (지수 기반: 1위=100, 2위=50, 3위=25, ...)
     # 선택하지 않은 인프라는 N+1번째 가중치(= 100 * 0.5^N)로 동일하게 적용
-    n = len(infra_types)
+    # 여기서 N은 사용자가 선택한 인프라 유형 개수가 아닌 총 인프라 유형 개수
+    n = len(InfrastructureTypeEnum)
     weight_map: dict[str, float] = {
         infra_type: 100.0 * (0.5 ** i)
         for i, infra_type in enumerate(infra_types)
@@ -309,65 +312,39 @@ def _bg_run(
 
 def generate_recommendation(
     db: Session,
+    redis: Redis,
     background_tasks: BackgroundTasks | None,
     *,
     request_user: User,
     rec_name: str | None = None,
-    region: dict | None = None,
-    infrastructure_types: list[InfrastructureTypeEnum] = [],
-    school_district_types: list[SchoolDistrictTypeEnum] = [],
-    high_school_ids: list[int] = [],
-    sale_price_min: float | None = None,
-    sale_price_max: float | None = None,
-    jeonse_price_min: float | None = None,
-    jeonse_price_max: float | None = None,
     task_id: str | None = None,
+    request_data: RecommendationCreateRequest,
 ):
     """
     추천 생성 로직
     - 처리 중 에러 발생 시 저장된 값을 쉽게 무효화(rollback)하기 위해 except, else를 통해서만 commit을 진행함
     """
 
-    region_id = region["id"] if region else None
-    region_name = region["name"] if region else None
-
-    request_data = {
-        "region": region_name,
-        "region_id": region_id,
-        "infrastructure_types": infrastructure_types,
-        "school_district_types": school_district_types,
-        "high_school_ids": high_school_ids,
-        "sale_price_min": sale_price_min,
-        "sale_price_max": sale_price_max,
-        "jeonse_price_min": jeonse_price_min,
-        "jeonse_price_max": jeonse_price_max,
-    }
+    data = verify_recommendation_request_data(redis, request_data)
 
     # 입력받은 조건들을 기반으로 task_id 생성
-    task_id = task_id or generate_recommendation_task_id(
-        **request_data,
+    task_id = task_id or _generate_recommendation_task_id(
+        **data,
     )
 
-    failed = False
     recommendation = get_recommendation_by_task_id(db, task_id)
-    if recommendation:
-        if recommendation.failed_at:
-            # 이전에 실패했다면 다시 로직 실행
-            recommendation.failed_at = None
-            failed = True
-
     if not recommendation:
         recommendation = create_recommendation(
             db,
             task_id=task_id,
-            **request_data,
+            **data,
         )
     recommendation.add_user(request_user, rec_name)
-    in_progress = recommendation.in_progress
-    recommendation.in_progress = True
-    db.commit()
 
-    if in_progress is not True and (failed or recommendation.finished_at is None):
+    if not recommendation.in_progress and (recommendation.failed_at or recommendation.finished_at is None):
+        recommendation.in_progress = True
+        recommendation.failed_at = None
+        db.commit()
         if background_tasks:
             # 백그라운드에서 비동기로 추천 생성 실행
             background_tasks.add_task(

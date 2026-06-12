@@ -3,7 +3,7 @@
 from unittest.mock import MagicMock, patch
 from app.models import User, Recommendation, SearchLog, Property, Infrastructure
 from app.core.enums import InfrastructureTypeEnum, SchoolDistrictTypeEnum
-from app.services.recommendation import generate_recommendation_task_id
+from app.services.recommendation import _generate_recommendation_task_id
 
 from datetime import datetime
 
@@ -24,7 +24,7 @@ def make_mock_user(id=1, email="test@example.com", name="Test User", cuid="cuid1
 @patch("app.dependencies.get_user_by_cuid")
 @patch("app.routers.auth.get_user_by_email")
 @patch("app.core.validate.get_region_by_id")
-@patch("app.routers.recommendations.verify_high_schools")
+@patch("app.core.validate.verify_high_schools")
 def test_request_generate_recommendation_success(
     mock_verify_high_schools, mock_get_region_by_id, mock_get_user_by_email, mock_get_user_by_cuid, client, mock_db
 ) -> None:
@@ -38,7 +38,7 @@ def test_request_generate_recommendation_success(
     mock_get_region_by_id.return_value = {"id": 1, "name": "서울특별시 용산구 도원동"}
     mock_verify_high_schools.return_value = [{"id": 1, "name": "고등학교1"}, {"id": 2, "name": "고등학교2"}]
 
-    mock_db.query().filter().first.return_value = None
+    mock_db.query.return_value.filter.return_value.first.return_value = None
 
     # 2. 로그인
     client.post("/auth/login", json={"email": "test@example.com", "password": "password123"})
@@ -49,7 +49,7 @@ def test_request_generate_recommendation_success(
         json={
             "name": "내 맞춤 추천",
             "region_id": 1,
-            "infrastructure_types": ["SUBWAY_STATION", "PARK"],
+            "infrastructure_types": ["SUBWAY_STATION", "PARK", "HIGH_SCHOOL"],
             "high_school_ids": [1, 2],
             "school_district_types": ["INTENSIVE", "BALANCED"],
             "sale_price": {"min": 0, "max": 1000000000},
@@ -60,9 +60,9 @@ def test_request_generate_recommendation_success(
     assert response.status_code == 202
     data = response.json()
     
-    expected_task_id = generate_recommendation_task_id(
+    expected_task_id = _generate_recommendation_task_id(
         region_id=1,
-        infrastructure_types=[InfrastructureTypeEnum.SUBWAY_STATION, InfrastructureTypeEnum.PARK],
+        infrastructure_types=[InfrastructureTypeEnum.SUBWAY_STATION, InfrastructureTypeEnum.PARK, InfrastructureTypeEnum.HIGH_SCHOOL],
         high_school_ids=[1, 2],
         school_district_types=[SchoolDistrictTypeEnum.INTENSIVE, SchoolDistrictTypeEnum.BALANCED],
         sale_price_min=0,
@@ -138,7 +138,7 @@ def test_request_generate_recommendation_invalid_infra(
 @patch("app.dependencies.get_user_by_cuid")
 @patch("app.routers.auth.get_user_by_email")
 @patch("app.core.validate.get_region_by_id")
-@patch("app.routers.recommendations.verify_high_schools")
+@patch("app.core.validate.verify_high_schools")
 def test_request_generate_recommendation_invalid_high_schools(
     mock_verify_high_schools, mock_get_region_by_id, mock_get_user_by_email, mock_get_user_by_cuid, client
 ) -> None:
@@ -167,7 +167,7 @@ def test_request_generate_recommendation_invalid_high_schools(
         "/recommendations",
         json={
             "region_id": 1,
-            "infrastructure_types": ["SUBWAY_STATION"],
+            "infrastructure_types": ["SUBWAY_STATION", "HIGH_SCHOOL"],
             "high_school_ids": [999]
         }
     )
