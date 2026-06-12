@@ -1,6 +1,6 @@
 import builtins
 from typing import TYPE_CHECKING
-from sqlalchemy import Column, ForeignKey, Enum, DateTime, String
+from sqlalchemy import Column, ForeignKey, Enum, DateTime, String, Index
 from sqlalchemy.dialects.mysql import INTEGER, DECIMAL
 from sqlalchemy.orm import Mapped, relationship
 from sqlalchemy.sql import func
@@ -39,6 +39,11 @@ class PropertyInfrastructure(Base):
 
     infrastructure: Mapped["Infrastructure"] = relationship("Infrastructure", back_populates="property_scores")
     property: Mapped["Property"] = relationship("Property", back_populates="infrastructure_scores")
+
+    __table_args__ = (
+        # window function PARTITION BY property_id, infrastructure_type ORDER BY score DESC 최적화
+        Index("idx_pi_property_type_score", "property_id", "infrastructure_type", "score"),
+    )
 
     @builtins.property
     def walking_duration(self):

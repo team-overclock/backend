@@ -181,7 +181,8 @@ def _main(
 
     # Step 4: 인프라 유형별 가중치 적용 (지수 기반: 1위=100, 2위=50, 3위=25, ...)
     # 선택하지 않은 인프라는 N+1번째 가중치(= 100 * 0.5^N)로 동일하게 적용
-    n = len(infra_types)
+    # 여기서 N은 사용자가 선택한 인프라 유형 개수가 아닌 총 인프라 유형 개수
+    n = len(InfrastructureTypeEnum)
     weight_map: dict[str, float] = {
         infra_type: 100.0 * (0.5 ** i)
         for i, infra_type in enumerate(infra_types)
