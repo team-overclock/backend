@@ -165,4 +165,4 @@ class UserRecommendations(BaseModel):
     """추천 요청 목록"""
 
     total: int = Field(description="추천 요청 수")
-    items: list[UserRecommendationsItem] = Field(description="추천 요청 목록")
+    items: list[UserRecommendationsItem] = Field(description="추천 요청 목록, 최신순")

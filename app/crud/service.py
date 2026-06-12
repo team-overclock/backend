@@ -207,4 +207,6 @@ def get_search_log_by_user_id(db: Session, user_id: int) -> list[SearchLog]:
         SearchLog.recommendation_id == Recommendation.id,
     ).filter(
         SearchLog.user_id == user_id,
+    ).order_by(
+        SearchLog.requested_at.desc()
     ).all()
