@@ -41,4 +41,5 @@ COPY data/url.txt ./data/url.txt
 COPY app ./app
 COPY scripts ./scripts
 RUN sha256sum "/defaults/requirements.txt" | sed "s|/defaults|/app|" > "$VIRTUAL_ENV/.requirements.lock"
+VOLUME /app/data
 WORKDIR /app

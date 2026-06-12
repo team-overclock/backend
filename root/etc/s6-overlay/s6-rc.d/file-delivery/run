@@ -6,4 +6,4 @@ if [ -f "requirements.txt" ]; then
 	exit 0
 fi
 
-mv /defaults/* .
+cp -r /defaults/* .
