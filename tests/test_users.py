@@ -173,7 +173,7 @@ def test_get_user_recommendations(mock_get_user_by_email, mock_get_user_by_cuid,
     mock_log2.requested_at = datetime.utcnow()
     mock_log2.last_viewed_at = datetime.utcnow()
 
-    mock_db.query().join().filter().all.return_value = [mock_log1, mock_log2]
+    mock_db.query().join().filter().order_by().all.return_value = [mock_log1, mock_log2]
 
     # Redis 모킹 설정
     import json as py_json
