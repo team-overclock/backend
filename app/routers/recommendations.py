@@ -56,31 +56,14 @@ def request_generate_recommendation(
     응답에 포함된 `task_id`로 추천 결과를 조회할 수 있음
     """
 
-    region = verify_region(redis, body.region_id) if body.region_id else None
-    schools = verify_high_schools(redis, body.high_school_ids) if body.high_school_ids else []
-
     rec_name = (body.name if body.name else "").strip() or None
-    infrastructure_types = body.infrastructure_types
-    school_district_types = body.school_district_types or []
-    high_school_ids = [x["id"] for x in schools]
-    sale_price_min = body.sale_price.min if body.sale_price else None
-    sale_price_max = body.sale_price.max if body.sale_price else None
-    jeonse_price_min = body.jeonse_price.min if body.jeonse_price else None
-    jeonse_price_max = body.jeonse_price.max if body.jeonse_price else None
-
     rec = generate_recommendation(
         db,
+        redis,
         background_tasks,
         request_user=user,
         rec_name=rec_name,
-        region=region,
-        infrastructure_types=infrastructure_types,
-        school_district_types=school_district_types,
-        high_school_ids=high_school_ids,
-        sale_price_min=sale_price_min,
-        sale_price_max=sale_price_max,
-        jeonse_price_min=jeonse_price_min,
-        jeonse_price_max=jeonse_price_max,
+        request_data=body,
     )
 
     return {

@@ -8,6 +8,7 @@ from ...database import SessionLocal
 from ...demo import create_guest_user
 from ...crud.service import get_regions, get_high_schools
 from ...utils import run_with_progress
+from ...schemas.service import RecommendationCreateRequest
 from ...models import (
     User,
     Recommendation,
@@ -65,36 +66,46 @@ def generate_seed_recommendations(
     request_users = random.sample(users, k=max_request_users)
 
     task_id = f"{SEED_TASK_ID_PREFIX}{suffix}"
+    has_region = random.choice([True] + [False] * 9)
     has_sale_price = random.choice([True, False])
     has_jeonse_price = random.choice([True, False])
-    selected_region = random.choice(regions)
+    selected_region = random.choice(regions) if has_region else None
     selected_infra_types = random.sample(infra_types, k=random.randint(1, len(infra_types)))
     selected_sale_price = random_range(0, 999999999999) if has_sale_price else (None, None)
     selected_jeonse_price = random_range(0, 999999999999) if has_jeonse_price else (None, None)
     selected_school_district_types = random.sample(school_district_types, k=random.randint(0, len(school_district_types)))
-    selected_high_school_ids = random.sample(high_school_ids, k=random.randint(0, min(10, len(high_school_ids))))
+    selected_high_school_ids = random.sample(high_school_ids, k=random.randint(0, min(5, len(high_school_ids))))
 
     random.shuffle(selected_infra_types)
 
     rec = None
     created_at, finished_at = map(datetime.fromtimestamp, random_range(start_ts, end_ts))
-    updated_at = finished_at + timedelta(minutes=random.randint(100, 1000)) if random.choice([True, [False] * 4]) else None
+    updated_at = finished_at + timedelta(minutes=random.randint(100, 1000)) if random.choice([True] + [False] * 4) else finished_at
 
     for user in request_users:
+        request_data = RecommendationCreateRequest(
+            name=task_id,
+            region_id=selected_region["id"] if selected_region else None,
+            infrastructure_types=selected_infra_types,
+            high_school_ids=selected_high_school_ids,
+            school_district_types=selected_school_district_types,
+            sale_price={
+                "min": selected_sale_price[0],
+                "max": selected_sale_price[1],
+            },
+            jeonse_price={
+                "min": selected_jeonse_price[0],
+                "max": selected_jeonse_price[1],
+            },
+        )
         rec = generate_recommendation(
             db,
+            redis,
             background_tasks=None,
             task_id=task_id,
             request_user=user,
             rec_name=None if random.choice([True, False]) else f"추천 {'x' * random.randint(1, 10)}",
-            region=selected_region,
-            infrastructure_types=selected_infra_types,
-            school_district_types=selected_school_district_types,
-            high_school_ids=selected_high_school_ids,
-            sale_price_min=selected_sale_price[0],
-            sale_price_max=selected_sale_price[1],
-            jeonse_price_min=selected_jeonse_price[0],
-            jeonse_price_max=selected_jeonse_price[1],
+            request_data=request_data,
         )
         is_last_viewed = random.choice([True, False])
         last_viewed_at = created_at + timedelta(minutes=random.randint(1, 1000)) if is_last_viewed else None
