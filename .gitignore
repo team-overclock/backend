@@ -3,6 +3,7 @@
 !.env*.example*
 data/**
 !data/url.txt
+.initialized
 
 # virtual environments
 venv
