@@ -136,7 +136,7 @@ class RecommendationReportItemSummary(BaseModel):
     address: AddressDetails = Field(description="매물 주소 정보")
     sale_price: PriceRange = Field(description="매물의 매매 가격 범위")
     jeonse_price: PriceRange = Field(description="매물의 전세 가격 범위")
-    infrastructure: list[RecommendationReportItemInfrastructureSummary] = Field(description="매물 주변 인프라 요약 정보 (최대 2개)", max_length=2)
+    infrastructure: list[RecommendationReportItemInfrastructureSummary] = Field(description="매물 주변 인프라 요약 정보 (요청 시 선택한 인프라 유형만 포함, 거리순)")
 
 class RecommendationReport(RecommendationCreateResponse):
     """추천 결과"""

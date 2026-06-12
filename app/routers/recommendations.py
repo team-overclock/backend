@@ -121,6 +121,7 @@ def get_recommendation_summary(
             "max": recommendation.jeonse_price_max,
         },
     }
+    request_infra_types: set[str] = set([x.type for x in request_data["infrastructure_types"]])
 
     db_properties = db.query(Property).filter(Property.id.in_([p["id"] for p in top_properties])).all()
     property_map = {prop.id: prop for prop in db_properties}
@@ -147,7 +148,7 @@ def get_recommendation_summary(
                 {
                     **InfrastructureTypeEnum[infra["type"]].meta._asdict(),
                     **infra,
-                } for infra in p["infrastructure_scores"][:2]
+                } for infra in p["infrastructure_scores"] if infra["type"] in request_infra_types
             ],
         } for p in top_properties
     ]
